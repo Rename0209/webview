@@ -9,9 +9,18 @@
     <script>
       window.extAsyncInit = function() {
         // Messenger Extensions SDK is ready
+        console.log('Messenger Extensions SDK is ready');
       };
     </script>
-    <script src="https://connect.facebook.net/en_US/messenger-extensions.js"></script>
+    <script>
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s); js.id = id;
+        js.src = "//connect.facebook.net/en_US/messenger.Extensions.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'Messenger'));
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
