@@ -7,8 +7,9 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Wait for SDK to be ready
-    window.extAsyncInit = function() {
+    // Define handler for when SDK is ready
+    window.onMessengerExtensionsReady = function() {
+      console.log('Messenger Extensions SDK is ready');
       // Check if MessengerExtensions is available
       if (window.MessengerExtensions) {
         window.MessengerExtensions.getContext('415798671014705', 
@@ -26,6 +27,16 @@ function App() {
       } else {
         setError('Messenger Extensions SDK not available. Please access this through Messenger.');
       }
+    };
+
+    // If SDK is already loaded, call the handler directly
+    if (window.MessengerExtensions) {
+      window.onMessengerExtensionsReady();
+    }
+
+    // Cleanup
+    return () => {
+      window.onMessengerExtensionsReady = null;
     };
   }, []);
 

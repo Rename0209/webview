@@ -18,8 +18,10 @@
       }(document, 'script', 'Messenger'));
 
       window.extAsyncInit = function() {
-        // the Messenger Extensions JS SDK is done loading 
-        console.log('Messenger Extensions SDK is ready');
+        // SDK is ready, notify our React app
+        if (window.onMessengerExtensionsReady) {
+          window.onMessengerExtensionsReady();
+        }
       };
     </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
