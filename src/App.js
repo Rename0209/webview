@@ -27,24 +27,28 @@ function App() {
     });
   }, []);
 
-  const getUserInfo = useCallback(async () => {
-    console.log("Getting user info...");
+  const getContextInfo = useCallback(async () => {
+    console.log("Getting context info...");
     try {
-      // Try getting user ID directly
-      const userId = await callSDKMethod('getUserID');
-      console.log("User ID success:", userId);
-      setPsid(userId);
+      // Try getting context directly without any permissions
+      const context = await callSDKMethod('getContext', APP_ID);
+      console.log("Context success:", context);
+      if (context && context.psid) {
+        setPsid(context.psid);
+      } else {
+        setError("Context received but no PSID found");
+      }
     } catch (error) {
-      console.error("getUserID error:", error);
-      setError(`Failed to get user ID: ${JSON.stringify(error)}`);
+      console.error("getContext error:", error);
+      setError(`Failed to get context: ${JSON.stringify(error)}`);
       
-      // If getUserID fails, check permissions
+      // Only check permissions if we get a specific error
       if (error.code === -32603) {
         console.log("Received RPC error, checking permissions...");
         await checkPermissions();
       }
     }
-  }, [callSDKMethod]);
+  }, [APP_ID, callSDKMethod]);
 
   const checkPermissions = useCallback(async () => {
     console.log("Checking permissions...");
@@ -54,25 +58,25 @@ function App() {
       if (!response.permissions.includes('user_profile')) {
         await askPermission();
       } else {
-        await getUserInfo();
+        await getContextInfo();
       }
     } catch (error) {
       console.error("Permission check failed:", error);
       await askPermission();
     }
-  }, [callSDKMethod, getUserInfo]);
+  }, [callSDKMethod, getContextInfo]);
 
   const askPermission = useCallback(async () => {
     console.log("Requesting user_profile permission...");
     try {
       const success = await callSDKMethod('askPermission', 'user_profile');
       console.log("Permission granted:", success);
-      await getUserInfo();
+      await getContextInfo();
     } catch (error) {
       console.error("Permission request failed:", error);
       setError(`Permission request failed: ${JSON.stringify(error)}`);
     }
-  }, [callSDKMethod, getUserInfo]);
+  }, [callSDKMethod, getContextInfo]);
 
   useEffect(() => {
     const isInIframe = window !== window.top;
@@ -98,7 +102,14 @@ function App() {
 
       // Check if it's a Messenger Extensions RPC message
       if (typeof event.data === 'string' && event.data.startsWith('MESSENGER_EXTENSIONS_RPC:')) {
-        console.log("Received RPC message:", event.data.substring('MESSENGER_EXTENSIONS_RPC:'.length));
+        const message = event.data.substring('MESSENGER_EXTENSIONS_RPC:'.length);
+        console.log("Received RPC message:", message);
+        try {
+          const rpcData = JSON.parse(message);
+          console.log("Parsed RPC data:", rpcData);
+        } catch (e) {
+          console.error("Failed to parse RPC message:", e);
+        }
       }
     };
 
@@ -110,11 +121,11 @@ function App() {
         const methods = Object.keys(window.MessengerExtensions || {});
         console.log("Available methods:", methods);
 
-        // Set SDK as ready since init is not needed/available
+        // Try getting context first without any initialization
+        await getContextInfo();
+        
+        // Set SDK as ready
         setSdkReady(true);
-
-        // Start with permission check
-        await checkPermissions();
       } catch (e) {
         console.error("Initialization failed:", e);
         setError(`Initialization failed: ${e.message}`);
@@ -125,30 +136,34 @@ function App() {
     
     // Start initialization immediately if we're in the right frame
     if (window.name === 'facebook_ref' && window.MessengerExtensions) {
-      initMessenger();
+      // Add a small delay to ensure everything is ready
+      setTimeout(initMessenger, 500);
     }
 
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [APP_ID, checkPermissions]);
+  }, [APP_ID, getContextInfo]);
 
   return (
     <div className="App">
       <header className="App-header">
         {psid ? (
-          <p>Your User ID: {psid}</p>
+          <p>Your PSID: {psid}</p>
         ) : (
           <div>
-            <p>Error getting User ID: {error || 'Unknown error'}</p>
-            <button onClick={checkPermissions}>
-              Check & Request Permissions
+            <p>Error getting PSID: {error || 'Unknown error'}</p>
+            <button onClick={getContextInfo}>
+              Try Get Context
+            </button>
+            <button onClick={checkPermissions} style={{ marginLeft: '10px' }}>
+              Check Permissions
             </button>
           </div>
         )}
         <div className="debug-info">
           <p>MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}</p>
-          <p>MessengerExtensions.getUserID available: {window.MessengerExtensions && typeof window.MessengerExtensions.getUserID === 'function' ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.getContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getContext === 'function' ? 'Yes' : 'No'}</p>
           <p>MessengerExtensions.getGrantedPermissions available: {window.MessengerExtensions && typeof window.MessengerExtensions.getGrantedPermissions === 'function' ? 'Yes' : 'No'}</p>
           <p>Available methods: {window.MessengerExtensions ? Object.keys(window.MessengerExtensions).join(', ') : 'None'}</p>
           <p>Window name: {window.name}</p>
