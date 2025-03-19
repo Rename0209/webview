@@ -17,10 +17,8 @@ function App() {
       }
 
       const method = window.MessengerExtensions[methodName];
-      const boundMethod = method.bind(window.MessengerExtensions);
-
       try {
-        boundMethod(...args, 
+        method(...args, 
           (result) => resolve(result),
           (error) => reject(error)
         );
@@ -113,10 +111,6 @@ function App() {
       console.log("MessengerExtensions found, initializing...");
       
       try {
-        // First verify we're in the correct environment
-        const env = await callSDKMethod('getEnvironment');
-        console.log("Environment:", env);
-
         // Initialize with proper error handling
         await new Promise((resolve, reject) => {
           window.MessengerExtensions.init(APP_ID, resolve, reject);
@@ -125,15 +119,7 @@ function App() {
         setSdkReady(true);
 
         // Check initial permissions
-        const perms = await callSDKMethod('getGrantedPermissions');
-        console.log("Initial permissions:", perms);
-        
-        if (!perms.permissions.includes('user_profile')) {
-          console.log("user_profile permission not found, requesting...");
-          await askPermission();
-        } else {
-          await getContext();
-        }
+        await checkPermissions();
       } catch (e) {
         console.error("Initialization failed:", e);
         setError(`Initialization failed: ${e.message}`);
@@ -157,7 +143,7 @@ function App() {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [APP_ID, askPermission, callSDKMethod, getContext]);
+  }, [APP_ID, checkPermissions]);
 
   return (
     <div className="App">
