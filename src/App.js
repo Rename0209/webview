@@ -13,17 +13,12 @@ function App() {
     // Check if we're in the correct context
     const isMessengerPlatform = window.name === 'messenger_ref' || 
                                window.name === 'facebook_ref' ||
-                               /messenger/i.test(window.name);
+                               /messenger/i.test(window.name) ||
+                               document.referrer.includes('facebook.com') ||
+                               window.location.search.includes('fb_iframe_origin');
     
     if (!isMessengerPlatform) {
       setError('This page must be opened through Facebook Messenger.');
-      return;
-    }
-
-    // Check URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    if (!urlParams.get('messenger_extensions')) {
-      setError('Missing messenger_extensions=true in URL parameters.');
       return;
     }
 
@@ -49,9 +44,9 @@ function App() {
               let errorMessage = 'Error getting PSID: ';
               if (err.code === -32603) {
                 errorMessage += 'Internal error. Please ensure:\n';
-                errorMessage += '1. You are opening this through Messenger\n';
-                errorMessage += '2. Your domain is whitelisted in the app settings\n';
-                errorMessage += '3. You have messenger_extensions=true in the URL';
+                errorMessage += '1. You are opening this through a Messenger button\n';
+                errorMessage += '2. Your domain (webview-lzgr.onrender.com) is whitelisted\n';
+                errorMessage += '3. The button is configured with messenger_extensions: true';
               } else {
                 errorMessage += err.message || 'Unknown error';
               }
@@ -64,7 +59,7 @@ function App() {
         }
       } else {
         console.error('MessengerExtensions not found in window object');
-        setError('Messenger Extensions SDK not available. Please access through Messenger.');
+        setError('Messenger Extensions SDK not available. Please access through a Messenger button.');
       }
     };
 
@@ -95,7 +90,8 @@ function App() {
               Window name: {window.name}<br/>
               URL parameters: {window.location.search}<br/>
               Origin: {window.location.origin}<br/>
-              Referrer: {document.referrer}
+              Referrer: {document.referrer}<br/>
+              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}
             </p>
           </div>
         ) : psid ? (
@@ -113,7 +109,8 @@ function App() {
               Window name: {window.name}<br/>
               URL parameters: {window.location.search}<br/>
               Origin: {window.location.origin}<br/>
-              Referrer: {document.referrer}
+              Referrer: {document.referrer}<br/>
+              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}
             </p>
           </div>
         )}
