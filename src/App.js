@@ -8,6 +8,19 @@ function App() {
   const [sdkReady, setSdkReady] = useState(false);
   const { APP_ID } = MESSENGER_CONFIG;
 
+  const waitForMessengerExtensions = useCallback(() => {
+    return new Promise((resolve) => {
+      const checkSDK = () => {
+        if (window.MessengerExtensions) {
+          resolve(true);
+        } else {
+          setTimeout(checkSDK, 100);
+        }
+      };
+      checkSDK();
+    });
+  }, []);
+
   // Wrap SDK calls to ensure proper binding
   const callSDKMethod = useCallback((methodName, ...args) => {
     return new Promise((resolve, reject) => {
@@ -16,9 +29,8 @@ function App() {
         return;
       }
 
-      const method = window.MessengerExtensions[methodName];
       try {
-        method(...args, 
+        window.MessengerExtensions[methodName](...args, 
           (result) => resolve(result),
           (error) => reject(error)
         );
@@ -102,20 +114,27 @@ function App() {
     };
 
     const initMessenger = async () => {
-      if (!window.MessengerExtensions) {
-        console.error("MessengerExtensions not found");
-        setError("MessengerExtensions not found - Make sure messenger_extensions=true is set");
-        return;
-      }
-
-      console.log("MessengerExtensions found, initializing...");
-      
       try {
+        // Wait for SDK to be available
+        await waitForMessengerExtensions();
+        console.log("MessengerExtensions found, initializing...");
+
         // Initialize with proper error handling
-        await new Promise((resolve, reject) => {
-          window.MessengerExtensions.init(APP_ID, resolve, reject);
+        const initResult = await new Promise((resolve, reject) => {
+          if (typeof window.MessengerExtensions.init !== 'function') {
+            console.error("init is not a function, trying alternative initialization");
+            // Try alternative initialization
+            if (window.MessengerExtensions && window.MessengerExtensions.getContext) {
+              resolve(true);
+            } else {
+              reject(new Error("MessengerExtensions.init not available"));
+            }
+          } else {
+            window.MessengerExtensions.init(APP_ID, resolve, reject);
+          }
         });
-        console.log("Init success");
+
+        console.log("Init result:", initResult);
         setSdkReady(true);
 
         // Check initial permissions
@@ -128,22 +147,15 @@ function App() {
 
     window.addEventListener('message', handleMessage);
     
-    // Wait for proper window name to be set
-    const checkWindowName = () => {
-      if (window.name === 'facebook_ref') {
-        initMessenger();
-      } else {
-        console.log("Waiting for correct window name...");
-        setTimeout(checkWindowName, 100);
-      }
-    };
-
-    checkWindowName();
+    // Start initialization immediately if we're in the right frame
+    if (window.name === 'facebook_ref') {
+      initMessenger();
+    }
 
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [APP_ID, checkPermissions]);
+  }, [APP_ID, checkPermissions, waitForMessengerExtensions]);
 
   return (
     <div className="App">
@@ -160,6 +172,8 @@ function App() {
         )}
         <div className="debug-info">
           <p>MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.init available: {window.MessengerExtensions && typeof window.MessengerExtensions.init === 'function' ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.getContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getContext === 'function' ? 'Yes' : 'No'}</p>
           <p>Window name: {window.name}</p>
           <p>URL parameters: {window.location.search}</p>
           <p>Origin: {window.location.origin}</p>
