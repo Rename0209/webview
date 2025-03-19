@@ -27,32 +27,24 @@ function App() {
     });
   }, []);
 
-  const getUserContext = useCallback(async () => {
-    console.log("Getting user context...");
+  const getUserInfo = useCallback(async () => {
+    console.log("Getting user info...");
     try {
-      // Try using getUserContext instead of getContext
-      const context = await callSDKMethod('getUserContext', APP_ID, 'MESSENGER');
-      console.log("User context success:", context);
-      setPsid(context.psid);
+      // Try getting user ID directly
+      const userId = await callSDKMethod('getUserID');
+      console.log("User ID success:", userId);
+      setPsid(userId);
     } catch (error) {
-      console.error("User context error:", error);
-      // If getUserContext fails, try the legacy method
-      try {
-        console.log("Trying legacy context method...");
-        const legacyContext = await callSDKMethod('getContext', APP_ID);
-        console.log("Legacy context success:", legacyContext);
-        setPsid(legacyContext.psid);
-      } catch (legacyError) {
-        console.error("Legacy context error:", legacyError);
-        if (legacyError.code === -32603) {
-          console.log("Received RPC error, checking permissions...");
-          await checkPermissions();
-        } else {
-          setError(`Failed to get context: ${JSON.stringify(legacyError)}`);
-        }
+      console.error("getUserID error:", error);
+      setError(`Failed to get user ID: ${JSON.stringify(error)}`);
+      
+      // If getUserID fails, check permissions
+      if (error.code === -32603) {
+        console.log("Received RPC error, checking permissions...");
+        await checkPermissions();
       }
     }
-  }, [APP_ID, callSDKMethod]);
+  }, [callSDKMethod]);
 
   const checkPermissions = useCallback(async () => {
     console.log("Checking permissions...");
@@ -62,25 +54,25 @@ function App() {
       if (!response.permissions.includes('user_profile')) {
         await askPermission();
       } else {
-        await getUserContext();
+        await getUserInfo();
       }
     } catch (error) {
       console.error("Permission check failed:", error);
       await askPermission();
     }
-  }, [callSDKMethod, getUserContext]);
+  }, [callSDKMethod, getUserInfo]);
 
   const askPermission = useCallback(async () => {
     console.log("Requesting user_profile permission...");
     try {
       const success = await callSDKMethod('askPermission', 'user_profile');
       console.log("Permission granted:", success);
-      await getUserContext();
+      await getUserInfo();
     } catch (error) {
       console.error("Permission request failed:", error);
       setError(`Permission request failed: ${JSON.stringify(error)}`);
     }
-  }, [callSDKMethod, getUserContext]);
+  }, [callSDKMethod, getUserInfo]);
 
   useEffect(() => {
     const isInIframe = window !== window.top;
@@ -145,10 +137,10 @@ function App() {
     <div className="App">
       <header className="App-header">
         {psid ? (
-          <p>Your PSID: {psid}</p>
+          <p>Your User ID: {psid}</p>
         ) : (
           <div>
-            <p>Error getting PSID: {error || 'Unknown error'}</p>
+            <p>Error getting User ID: {error || 'Unknown error'}</p>
             <button onClick={checkPermissions}>
               Check & Request Permissions
             </button>
@@ -156,9 +148,8 @@ function App() {
         )}
         <div className="debug-info">
           <p>MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}</p>
-          <p>MessengerExtensions.init available: {window.MessengerExtensions && typeof window.MessengerExtensions.init === 'function' ? 'Yes' : 'No'}</p>
-          <p>MessengerExtensions.getContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getContext === 'function' ? 'Yes' : 'No'}</p>
-          <p>MessengerExtensions.getUserContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getUserContext === 'function' ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.getUserID available: {window.MessengerExtensions && typeof window.MessengerExtensions.getUserID === 'function' ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.getGrantedPermissions available: {window.MessengerExtensions && typeof window.MessengerExtensions.getGrantedPermissions === 'function' ? 'Yes' : 'No'}</p>
           <p>Available methods: {window.MessengerExtensions ? Object.keys(window.MessengerExtensions).join(', ') : 'None'}</p>
           <p>Window name: {window.name}</p>
           <p>URL parameters: {window.location.search}</p>
