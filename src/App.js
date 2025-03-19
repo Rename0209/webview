@@ -1,231 +1,190 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import './App.css';
 import { MESSENGER_CONFIG } from './config';
 
 function App() {
   const [psid, setPsid] = useState(null);
   const [error, setError] = useState(null);
+  const [sdkReady, setSdkReady] = useState(false);
   const { APP_ID } = MESSENGER_CONFIG;
 
-  const checkPermissions = () => {
-    if (window.MessengerExtensions) {
-      window.MessengerExtensions.getGrantedPermissions(
-        function(permission_response) {
-          console.log("Current permissions:", permission_response.permissions);
-          const hasUserProfile = permission_response.permissions.includes('user_profile');
-          if (!hasUserProfile) {
-            console.log("user_profile permission not found, requesting...");
-            askPermission();
-          } else {
-            console.log("user_profile permission already granted");
-            getContext();
-          }
-        },
-        function(error) {
-          console.error("Error checking permissions:", error);
-          askPermission();
-        }
-      );
-    }
-  };
+  // Wrap SDK calls to ensure proper binding
+  const callSDKMethod = useCallback((methodName, ...args) => {
+    return new Promise((resolve, reject) => {
+      if (!window.MessengerExtensions || !window.MessengerExtensions[methodName]) {
+        reject(new Error(`${methodName} not available`));
+        return;
+      }
 
-  const askPermission = () => {
-    if (window.MessengerExtensions) {
-      window.MessengerExtensions.askPermission(
-        function(permission_response) {
-          console.log("Permission response:", permission_response);
-          let permissions = permission_response.permissions;
-          let isGranted = permission_response.isGranted;
-          
-          if (isGranted) {
-            console.log("Permissions granted:", permissions);
-            getContext();
-          } else {
-            console.log("Permissions denied:", permissions);
-            setError('Permissions not granted. Please allow access to continue.');
-          }
-        },
-        function(error) {
-          console.error("Error asking permission:", error);
-          setError('Error requesting permissions: ' + (error.message || 'Unknown error'));
-        },
-        APP_ID,
-        ['user_profile', 'user_messaging']
-      );
-    }
-  };
+      const method = window.MessengerExtensions[methodName];
+      const boundMethod = method.bind(window.MessengerExtensions);
 
-  const getContext = () => {
-    if (!window.MessengerExtensions) {
-      console.error('MessengerExtensions not available');
-      return;
-    }
+      try {
+        boundMethod(...args, 
+          (result) => resolve(result),
+          (error) => reject(error)
+        );
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }, []);
 
-    // Try to parse the signed request if available
-    const urlParams = new URLSearchParams(window.location.search);
-    const signedRequest = urlParams.get('signed_request');
-    if (signedRequest) {
-      console.log("Found signed_request in URL");
-    }
-
+  const getContext = useCallback(async () => {
+    console.log("Getting context...");
     try {
-      console.log("Attempting to get context with APP_ID:", APP_ID);
-      window.MessengerExtensions.getContext(
-        APP_ID,
-        function success(thread_context) {
-          console.log("Got thread context:", thread_context);
-          if (thread_context.psid) {
-            console.log("Found PSID:", thread_context.psid);
-            setPsid(thread_context.psid);
-          } else {
-            console.log("No PSID in context:", thread_context);
-            // Try alternative method using signed request
-            if (signedRequest) {
-              console.log("Attempting to use signed_request");
-              // You might need to implement signed request handling here
-            } else {
-              setError('PSID not found in context. Please ensure you have the correct permissions.');
-              checkPermissions();
-            }
-          }
-        },
-        function error(err) {
-          console.error("getContext error details:", err);
-          let errorMessage = 'Error getting PSID: ';
-          if (err.code === -32603) {
-            console.log("Received -32603 error, checking environment...");
-            const fbFrame = window.location.search.includes('fb_iframe_origin');
-            const inMessenger = window.name === 'messenger_ref' || window.name === 'facebook_ref';
-            
-            errorMessage += `Internal error (-32603).\n`;
-            errorMessage += `Debug Info:\n`;
-            errorMessage += `- In Facebook Frame: ${fbFrame}\n`;
-            errorMessage += `- In Messenger: ${inMessenger}\n`;
-            errorMessage += `- Window Name: ${window.name}\n`;
-            errorMessage += `\nPlease ensure:\n`;
-            errorMessage += `1. You are opening this through a Messenger button\n`;
-            errorMessage += `2. Your domain (${window.location.origin}) is whitelisted\n`;
-            errorMessage += `3. The button has messenger_extensions: true\n`;
-            errorMessage += `4. You are using HTTPS\n`;
-            
-            // Try to reinitialize if in iframe
-            if (fbFrame && !window.name.includes('messenger')) {
-              window.name = 'messenger_ref';
-              console.log("Set window.name to messenger_ref, retrying...");
-              setTimeout(checkPermissions, 1000);
-            }
-          } else {
-            errorMessage += err.message || 'Unknown error';
-          }
-          setError(errorMessage);
-        }
-      );
-    } catch (e) {
-      console.error('Error calling getContext:', e);
-      setError('Failed to call getContext: ' + e.message);
+      const context = await callSDKMethod('getContext', APP_ID);
+      console.log("Context success:", context);
+      setPsid(context.psid);
+    } catch (error) {
+      console.error("Context error:", error);
+      if (error.code === -32603) {
+        console.log("Received RPC error, checking permissions...");
+        await checkPermissions();
+      } else {
+        setError(`Failed to get context: ${JSON.stringify(error)}`);
+      }
     }
-  };
+  }, [APP_ID, callSDKMethod]);
+
+  const checkPermissions = useCallback(async () => {
+    console.log("Checking permissions...");
+    try {
+      const response = await callSDKMethod('getGrantedPermissions');
+      console.log("Current permissions:", response);
+      if (!response.permissions.includes('user_profile')) {
+        await askPermission();
+      } else {
+        await getContext();
+      }
+    } catch (error) {
+      console.error("Permission check failed:", error);
+      await askPermission();
+    }
+  }, [callSDKMethod, getContext]);
+
+  const askPermission = useCallback(async () => {
+    console.log("Requesting user_profile permission...");
+    try {
+      const success = await callSDKMethod('askPermission', 'user_profile');
+      console.log("Permission granted:", success);
+      await getContext();
+    } catch (error) {
+      console.error("Permission request failed:", error);
+      setError(`Permission request failed: ${JSON.stringify(error)}`);
+    }
+  }, [callSDKMethod, getContext]);
 
   useEffect(() => {
-    console.log('Component mounted, checking for MessengerExtensions...');
-    console.log('Window name:', window.name);
-    console.log('URL:', window.location.href);
-    console.log('Referrer:', document.referrer);
+    const isInIframe = window !== window.top;
+    console.log("Is in iframe:", isInIframe);
+    console.log("Window name:", window.name);
+    console.log("Origin:", window.location.origin);
+    console.log("Referrer:", document.referrer);
     
-    // Check if we're in the correct context
-    const isMessengerPlatform = window.name === 'messenger_ref' || 
-                               window.name === 'facebook_ref' ||
-                               /messenger/i.test(window.name) ||
-                               document.referrer.includes('facebook.com') ||
-                               window.location.search.includes('fb_iframe_origin');
-    
-    if (!isMessengerPlatform) {
-      setError('This page must be opened through Facebook Messenger.');
+    if (!isInIframe) {
+      setError("This app must be run inside Messenger webview");
       return;
     }
 
-    // Define handler for when SDK is ready
-    window.onMessengerExtensionsReady = function() {
-      console.log('Messenger Extensions SDK is ready');
-      if (window.MessengerExtensions) {
-        console.log('MessengerExtensions found, checking permissions...');
-        checkPermissions();
-      } else {
-        console.error('MessengerExtensions not found in window object');
-        setError('Messenger Extensions SDK not available. Please access through a Messenger button.');
+    // Handle incoming messages from the parent frame
+    const handleMessage = (event) => {
+      console.log("Received message:", event);
+      
+      // Verify origin contains facebook.com
+      if (!event.origin.includes('facebook.com')) {
+        console.log("Ignoring message from non-Facebook origin:", event.origin);
+        return;
+      }
+
+      // Check if it's a Messenger Extensions RPC message
+      if (typeof event.data === 'string' && event.data.startsWith('MESSENGER_EXTENSIONS_RPC:')) {
+        console.log("Received RPC message:", event.data.substring('MESSENGER_EXTENSIONS_RPC:'.length));
       }
     };
 
-    // If SDK is already loaded, call the handler directly
-    if (window.MessengerExtensions) {
-      console.log('MessengerExtensions already available, calling handler...');
-      window.onMessengerExtensionsReady();
-    } else {
-      console.log('Waiting for MessengerExtensions to load...');
-    }
+    const initMessenger = async () => {
+      if (!window.MessengerExtensions) {
+        console.error("MessengerExtensions not found");
+        setError("MessengerExtensions not found - Make sure messenger_extensions=true is set");
+        return;
+      }
 
-    // Cleanup
-    return () => {
-      window.onMessengerExtensionsReady = null;
+      console.log("MessengerExtensions found, initializing...");
+      
+      try {
+        // First verify we're in the correct environment
+        const env = await callSDKMethod('getEnvironment');
+        console.log("Environment:", env);
+
+        // Initialize with proper error handling
+        await new Promise((resolve, reject) => {
+          window.MessengerExtensions.init(APP_ID, resolve, reject);
+        });
+        console.log("Init success");
+        setSdkReady(true);
+
+        // Check initial permissions
+        const perms = await callSDKMethod('getGrantedPermissions');
+        console.log("Initial permissions:", perms);
+        
+        if (!perms.permissions.includes('user_profile')) {
+          console.log("user_profile permission not found, requesting...");
+          await askPermission();
+        } else {
+          await getContext();
+        }
+      } catch (e) {
+        console.error("Initialization failed:", e);
+        setError(`Initialization failed: ${e.message}`);
+      }
     };
-  }, []);
+
+    window.addEventListener('message', handleMessage);
+    
+    // Wait for proper window name to be set
+    const checkWindowName = () => {
+      if (window.name === 'facebook_ref') {
+        initMessenger();
+      } else {
+        console.log("Waiting for correct window name...");
+        setTimeout(checkWindowName, 100);
+      }
+    };
+
+    checkWindowName();
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [APP_ID, askPermission, callSDKMethod, getContext]);
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Messenger WebView</h1>
-        {error ? (
-          <div className="error">
-            <p style={{ whiteSpace: 'pre-line' }}>{error}</p>
-            <small>App ID: {APP_ID}</small>
-            <button 
-              onClick={checkPermissions}
-              style={{ 
-                margin: '10px 0',
-                padding: '8px 16px',
-                backgroundColor: '#0084ff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Check & Request Permissions
-            </button>
-            <p className="debug-info">
-              MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}<br/>
-              Window name: {window.name}<br/>
-              URL parameters: {window.location.search}<br/>
-              Origin: {window.location.origin}<br/>
-              Referrer: {document.referrer}<br/>
-              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}<br/>
-              Protocol: {window.location.protocol}
-            </p>
-          </div>
-        ) : psid ? (
-          <div>
-            <h2>Your PSID:</h2>
-            <p>{psid}</p>
-            <small>App ID: {APP_ID}</small>
-          </div>
+        {psid ? (
+          <p>Your PSID: {psid}</p>
         ) : (
           <div>
-            <p>Loading PSID...</p>
-            <small>App ID: {APP_ID}</small>
-            <p className="debug-info">
-              MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}<br/>
-              Window name: {window.name}<br/>
-              URL parameters: {window.location.search}<br/>
-              Origin: {window.location.origin}<br/>
-              Referrer: {document.referrer}<br/>
-              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}<br/>
-              Protocol: {window.location.protocol}
-            </p>
+            <p>Error getting PSID: {error || 'Unknown error'}</p>
+            <button onClick={checkPermissions}>
+              Check & Request Permissions
+            </button>
           </div>
         )}
+        <div className="debug-info">
+          <p>MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}</p>
+          <p>Window name: {window.name}</p>
+          <p>URL parameters: {window.location.search}</p>
+          <p>Origin: {window.location.origin}</p>
+          <p>Referrer: {document.referrer}</p>
+          <p>Is Facebook iFrame: {window !== window.top ? 'Yes' : 'No'}</p>
+          <p>Protocol: {window.location.protocol}</p>
+          <p>SDK Ready: {sdkReady ? 'Yes' : 'No'}</p>
+        </div>
       </header>
     </div>
   );
 }
 
-export default App; 
+export default App;

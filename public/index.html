@@ -2,28 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Messenger WebView App" />
-    <title>Messenger WebView</title>
+    <meta name="description" content="Web site created using create-react-app" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <title>React App</title>
+    <script 
+      src="https://connect.facebook.net/en_US/messenger.Extensions.js"
+      as="script"
+      type="text/javascript"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
-    <script>
-      (function(d, s, id){
-        var js, fjs = d.getElementsByTagName(s)[0];
-        if (d.getElementById(id)) {return;}
-        js = d.createElement(s); js.id = id;
-        js.src = "//connect.facebook.net/en_US/messenger.Extensions.js";
-        fjs.parentNode.insertBefore(js, fjs);
-      }(document, 'script', 'Messenger'));
-
-      window.extAsyncInit = function() {
-        // SDK is ready, notify our React app
-        if (window.onMessengerExtensionsReady) {
-          window.onMessengerExtensionsReady();
-        }
-      };
-    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>
