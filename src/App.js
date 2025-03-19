@@ -8,19 +8,6 @@ function App() {
   const [sdkReady, setSdkReady] = useState(false);
   const { APP_ID } = MESSENGER_CONFIG;
 
-  const waitForMessengerExtensions = useCallback(() => {
-    return new Promise((resolve) => {
-      const checkSDK = () => {
-        if (window.MessengerExtensions) {
-          resolve(true);
-        } else {
-          setTimeout(checkSDK, 100);
-        }
-      };
-      checkSDK();
-    });
-  }, []);
-
   // Wrap SDK calls to ensure proper binding
   const callSDKMethod = useCallback((methodName, ...args) => {
     return new Promise((resolve, reject) => {
@@ -40,19 +27,29 @@ function App() {
     });
   }, []);
 
-  const getContext = useCallback(async () => {
-    console.log("Getting context...");
+  const getUserContext = useCallback(async () => {
+    console.log("Getting user context...");
     try {
-      const context = await callSDKMethod('getContext', APP_ID);
-      console.log("Context success:", context);
+      // Try using getUserContext instead of getContext
+      const context = await callSDKMethod('getUserContext', APP_ID, 'MESSENGER');
+      console.log("User context success:", context);
       setPsid(context.psid);
     } catch (error) {
-      console.error("Context error:", error);
-      if (error.code === -32603) {
-        console.log("Received RPC error, checking permissions...");
-        await checkPermissions();
-      } else {
-        setError(`Failed to get context: ${JSON.stringify(error)}`);
+      console.error("User context error:", error);
+      // If getUserContext fails, try the legacy method
+      try {
+        console.log("Trying legacy context method...");
+        const legacyContext = await callSDKMethod('getContext', APP_ID);
+        console.log("Legacy context success:", legacyContext);
+        setPsid(legacyContext.psid);
+      } catch (legacyError) {
+        console.error("Legacy context error:", legacyError);
+        if (legacyError.code === -32603) {
+          console.log("Received RPC error, checking permissions...");
+          await checkPermissions();
+        } else {
+          setError(`Failed to get context: ${JSON.stringify(legacyError)}`);
+        }
       }
     }
   }, [APP_ID, callSDKMethod]);
@@ -65,25 +62,25 @@ function App() {
       if (!response.permissions.includes('user_profile')) {
         await askPermission();
       } else {
-        await getContext();
+        await getUserContext();
       }
     } catch (error) {
       console.error("Permission check failed:", error);
       await askPermission();
     }
-  }, [callSDKMethod, getContext]);
+  }, [callSDKMethod, getUserContext]);
 
   const askPermission = useCallback(async () => {
     console.log("Requesting user_profile permission...");
     try {
       const success = await callSDKMethod('askPermission', 'user_profile');
       console.log("Permission granted:", success);
-      await getContext();
+      await getUserContext();
     } catch (error) {
       console.error("Permission request failed:", error);
       setError(`Permission request failed: ${JSON.stringify(error)}`);
     }
-  }, [callSDKMethod, getContext]);
+  }, [callSDKMethod, getUserContext]);
 
   useEffect(() => {
     const isInIframe = window !== window.top;
@@ -115,29 +112,16 @@ function App() {
 
     const initMessenger = async () => {
       try {
-        // Wait for SDK to be available
-        await waitForMessengerExtensions();
-        console.log("MessengerExtensions found, initializing...");
+        console.log("MessengerExtensions found, checking methods...");
+        
+        // Check available methods
+        const methods = Object.keys(window.MessengerExtensions || {});
+        console.log("Available methods:", methods);
 
-        // Initialize with proper error handling
-        const initResult = await new Promise((resolve, reject) => {
-          if (typeof window.MessengerExtensions.init !== 'function') {
-            console.error("init is not a function, trying alternative initialization");
-            // Try alternative initialization
-            if (window.MessengerExtensions && window.MessengerExtensions.getContext) {
-              resolve(true);
-            } else {
-              reject(new Error("MessengerExtensions.init not available"));
-            }
-          } else {
-            window.MessengerExtensions.init(APP_ID, resolve, reject);
-          }
-        });
-
-        console.log("Init result:", initResult);
+        // Set SDK as ready since init is not needed/available
         setSdkReady(true);
 
-        // Check initial permissions
+        // Start with permission check
         await checkPermissions();
       } catch (e) {
         console.error("Initialization failed:", e);
@@ -148,14 +132,14 @@ function App() {
     window.addEventListener('message', handleMessage);
     
     // Start initialization immediately if we're in the right frame
-    if (window.name === 'facebook_ref') {
+    if (window.name === 'facebook_ref' && window.MessengerExtensions) {
       initMessenger();
     }
 
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [APP_ID, checkPermissions, waitForMessengerExtensions]);
+  }, [APP_ID, checkPermissions]);
 
   return (
     <div className="App">
@@ -174,6 +158,8 @@ function App() {
           <p>MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}</p>
           <p>MessengerExtensions.init available: {window.MessengerExtensions && typeof window.MessengerExtensions.init === 'function' ? 'Yes' : 'No'}</p>
           <p>MessengerExtensions.getContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getContext === 'function' ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.getUserContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getUserContext === 'function' ? 'Yes' : 'No'}</p>
+          <p>Available methods: {window.MessengerExtensions ? Object.keys(window.MessengerExtensions).join(', ') : 'None'}</p>
           <p>Window name: {window.name}</p>
           <p>URL parameters: {window.location.search}</p>
           <p>Origin: {window.location.origin}</p>
