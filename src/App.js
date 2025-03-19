@@ -12,20 +12,18 @@ function App() {
       console.log('Messenger Extensions SDK is ready');
       // Check if MessengerExtensions is available
       if (window.MessengerExtensions) {
-        window.MessengerExtensions.getContext('415798671014705', 
+        window.MessengerExtensions.getContext('621815067674939', 
           function success(thread_context) {
-            // success
-            console.log("Success! Got user context:", thread_context);
+            console.log("Lấy thành công PSID:", thread_context.psid);
             setPsid(thread_context.psid);
           },
           function error(err) {
-            // error
-            console.error("Failed to get context:", err);
-            setError('Failed to get PSID. Please make sure you are accessing this through Messenger.');
+            console.error("Lỗi khi lấy PSID:", err);
+            setError('Không thể lấy được PSID. Vui lòng đảm bảo bạn đang truy cập qua Messenger.');
           }
         );
       } else {
-        setError('Messenger Extensions SDK not available. Please access this through Messenger.');
+        setError('Messenger Extensions SDK không khả dụng. Vui lòng truy cập qua Messenger.');
       }
     };
 
