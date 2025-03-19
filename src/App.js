@@ -7,6 +7,7 @@ function App() {
   const [error, setError] = useState(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [features, setFeatures] = useState(null);
+  const [context, setContext] = useState(null);
   const { APP_ID } = MESSENGER_CONFIG;
 
   // Parse signed request from URL
@@ -88,43 +89,25 @@ function App() {
     }
   }, [callSDKMethod]);
 
-  // Try to get context from Messenger Extensions
-  const getContextFromMessenger = useCallback(async () => {
-    try {
-      // First check if context feature is supported
-      const features = await callSDKMethod('getSupportedFeatures');
-      console.log("Checking if context feature is supported:", features);
-      
-      if (!features.supported_features.includes('context')) {
-        console.warn("Context feature is not supported on this client");
-        return null;
-      }
-
-      // If context is supported, try to get it
-      const context = await new Promise((resolve, reject) => {
-        window.MessengerExtensions.getContext(
-          APP_ID,
-          (result) => {
-            console.log("Got context result:", result);
-            resolve(result);
-          },
-          (error) => {
-            console.error("Failed to get context:", error);
-            reject(error);
-          }
-        );
-      });
-
-      if (context && context.psid) {
-        return context.psid;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error("Error getting context:", error);
-      return null;
+  const getContext = () => {
+    if (!window.MessengerExtensions) {
+      setError("MessengerExtensions not available");
+      return;
     }
-  }, [APP_ID]);
+
+    window.MessengerExtensions.getContext(
+      APP_ID,
+      (result) => {
+        console.log("Context result:", result);
+        setContext(result);
+        setError(null);
+      },
+      (err) => {
+        console.error("Context error:", err);
+        setError(err.message || JSON.stringify(err));
+      }
+    );
+  };
 
   const initMessenger = async () => {
     try {
@@ -146,13 +129,8 @@ function App() {
       }
 
       // 2. Try getting context
-      psidFound = await getContextFromMessenger();
-      if (psidFound) {
-        console.log("Found PSID from context:", psidFound);
-        setPsid(psidFound);
-        return;
-      }
-
+      getContext();
+      
       // Get supported features for debugging
       await getSupportedFeatures();
       
@@ -213,6 +191,13 @@ function App() {
       // Add a small delay to ensure everything is ready
       setTimeout(initMessenger, 500);
     }
+
+    // Wait a bit for MessengerExtensions to be ready
+    setTimeout(() => {
+      if (window.MessengerExtensions) {
+        getContext();
+      }
+    }, 1000);
 
     return () => {
       window.removeEventListener('message', handleMessage);
