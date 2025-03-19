@@ -7,26 +7,26 @@ function App() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Wait for the SDK to be ready
-    if (window.extAsyncInit) {
-      window.extAsyncInit = function() {
-        // SDK is ready, now we can use it
-        if (window.MessengerExtensions) {
-          window.MessengerExtensions.getContext('facebook', 
-            function success(thread_context) {
-              console.log('Successfully got context:', thread_context);
-              setPsid(thread_context.psid);
-            }, 
-            function error(err) {
-              console.error('Error getting context:', err);
-              setError('Failed to get PSID. Please make sure you are accessing this through Messenger.');
-            }
-          );
-        } else {
-          setError('Messenger Extensions SDK not available. Please access this through Messenger.');
-        }
-      };
-    }
+    // Wait for SDK to be ready
+    window.extAsyncInit = function() {
+      // Check if MessengerExtensions is available
+      if (window.MessengerExtensions) {
+        window.MessengerExtensions.getContext('415798671014705', 
+          function success(thread_context) {
+            // success
+            console.log("Success! Got user context:", thread_context);
+            setPsid(thread_context.psid);
+          },
+          function error(err) {
+            // error
+            console.error("Failed to get context:", err);
+            setError('Failed to get PSID. Please make sure you are accessing this through Messenger.');
+          }
+        );
+      } else {
+        setError('Messenger Extensions SDK not available. Please access this through Messenger.');
+      }
+    };
   }, []);
 
   return (
