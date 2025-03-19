@@ -46,6 +46,17 @@ p {
   margin: 0;
 }
 
+.debug-info {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 1rem;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1rem;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
 /* Mobile-specific styles */
 @media screen and (max-width: 768px) {
   .App-header {
