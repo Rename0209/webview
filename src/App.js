@@ -5,7 +5,7 @@ import { MESSENGER_CONFIG } from './config';
 function App() {
   const [psid, setPsid] = useState(null);
   const [error, setError] = useState(null);
-  const APP_ID = '415798671014705';
+  const { APP_ID } = MESSENGER_CONFIG;
 
   const checkPermissions = () => {
     if (window.MessengerExtensions) {
@@ -23,7 +23,6 @@ function App() {
         },
         function(error) {
           console.error("Error checking permissions:", error);
-          // If we can't check permissions, try asking for them directly
           askPermission();
         }
       );
@@ -35,7 +34,7 @@ function App() {
       window.MessengerExtensions.askPermission(
         function(permission_response) {
           console.log("Permission response:", permission_response);
-          let permissions = permission_response.permissions; // list of all permissions granted
+          let permissions = permission_response.permissions;
           let isGranted = permission_response.isGranted;
           
           if (isGranted) {
@@ -51,52 +50,87 @@ function App() {
           setError('Error requesting permissions: ' + (error.message || 'Unknown error'));
         },
         APP_ID,
-        ['user_profile', 'user_messaging'] // Request both standard permissions
+        ['user_profile', 'user_messaging']
       );
     }
   };
 
   const getContext = () => {
-    if (window.MessengerExtensions) {
-      try {
-        window.MessengerExtensions.getContext(APP_ID,
-          function success(thread_context) {
-            console.log("Got thread context:", thread_context);
-            if (thread_context.psid) {
-              console.log("Found PSID:", thread_context.psid);
-              setPsid(thread_context.psid);
+    if (!window.MessengerExtensions) {
+      console.error('MessengerExtensions not available');
+      return;
+    }
+
+    // Try to parse the signed request if available
+    const urlParams = new URLSearchParams(window.location.search);
+    const signedRequest = urlParams.get('signed_request');
+    if (signedRequest) {
+      console.log("Found signed_request in URL");
+    }
+
+    try {
+      console.log("Attempting to get context with APP_ID:", APP_ID);
+      window.MessengerExtensions.getContext(
+        APP_ID,
+        function success(thread_context) {
+          console.log("Got thread context:", thread_context);
+          if (thread_context.psid) {
+            console.log("Found PSID:", thread_context.psid);
+            setPsid(thread_context.psid);
+          } else {
+            console.log("No PSID in context:", thread_context);
+            // Try alternative method using signed request
+            if (signedRequest) {
+              console.log("Attempting to use signed_request");
+              // You might need to implement signed request handling here
             } else {
-              console.log("No PSID in context:", thread_context);
               setError('PSID not found in context. Please ensure you have the correct permissions.');
-              // Check permissions before requesting again
               checkPermissions();
             }
-          },
-          function error(err) {
-            console.error("getContext error details:", err);
-            let errorMessage = 'Error getting PSID: ';
-            if (err.code === -32603) {
-              errorMessage += 'Internal error. Please ensure:\n';
-              errorMessage += '1. You are opening this through a Messenger button\n';
-              errorMessage += '2. Your domain (webview-lzgr.onrender.com) is whitelisted\n';
-              errorMessage += '3. The button is configured with messenger_extensions: true';
-              // Check permissions on internal error
-              checkPermissions();
-            } else {
-              errorMessage += err.message || 'Unknown error';
-            }
-            setError(errorMessage);
           }
-        );
-      } catch (e) {
-        console.error('Error calling getContext:', e);
-        setError('Failed to call getContext: ' + e.message);
-      }
+        },
+        function error(err) {
+          console.error("getContext error details:", err);
+          let errorMessage = 'Error getting PSID: ';
+          if (err.code === -32603) {
+            console.log("Received -32603 error, checking environment...");
+            const fbFrame = window.location.search.includes('fb_iframe_origin');
+            const inMessenger = window.name === 'messenger_ref' || window.name === 'facebook_ref';
+            
+            errorMessage += `Internal error (-32603).\n`;
+            errorMessage += `Debug Info:\n`;
+            errorMessage += `- In Facebook Frame: ${fbFrame}\n`;
+            errorMessage += `- In Messenger: ${inMessenger}\n`;
+            errorMessage += `- Window Name: ${window.name}\n`;
+            errorMessage += `\nPlease ensure:\n`;
+            errorMessage += `1. You are opening this through a Messenger button\n`;
+            errorMessage += `2. Your domain (${window.location.origin}) is whitelisted\n`;
+            errorMessage += `3. The button has messenger_extensions: true\n`;
+            errorMessage += `4. You are using HTTPS\n`;
+            
+            // Try to reinitialize if in iframe
+            if (fbFrame && !window.name.includes('messenger')) {
+              window.name = 'messenger_ref';
+              console.log("Set window.name to messenger_ref, retrying...");
+              setTimeout(checkPermissions, 1000);
+            }
+          } else {
+            errorMessage += err.message || 'Unknown error';
+          }
+          setError(errorMessage);
+        }
+      );
+    } catch (e) {
+      console.error('Error calling getContext:', e);
+      setError('Failed to call getContext: ' + e.message);
     }
   };
 
   useEffect(() => {
     console.log('Component mounted, checking for MessengerExtensions...');
+    console.log('Window name:', window.name);
+    console.log('URL:', window.location.href);
+    console.log('Referrer:', document.referrer);
     
     // Check if we're in the correct context
     const isMessengerPlatform = window.name === 'messenger_ref' || 
@@ -164,7 +198,8 @@ function App() {
               URL parameters: {window.location.search}<br/>
               Origin: {window.location.origin}<br/>
               Referrer: {document.referrer}<br/>
-              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}
+              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}<br/>
+              Protocol: {window.location.protocol}
             </p>
           </div>
         ) : psid ? (
@@ -183,7 +218,8 @@ function App() {
               URL parameters: {window.location.search}<br/>
               Origin: {window.location.origin}<br/>
               Referrer: {document.referrer}<br/>
-              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}
+              Is Facebook frame: {Boolean(window.location.search.includes('fb_iframe_origin'))}<br/>
+              Protocol: {window.location.protocol}
             </p>
           </div>
         )}
