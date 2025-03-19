@@ -6,7 +6,31 @@ function App() {
   const [psid, setPsid] = useState(null);
   const [error, setError] = useState(null);
   const [sdkReady, setSdkReady] = useState(false);
+  const [features, setFeatures] = useState(null);
   const { APP_ID } = MESSENGER_CONFIG;
+
+  // Parse signed request from URL
+  const getSignedRequestFromURL = useCallback(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const signedRequest = urlParams.get('signed_request');
+    if (signedRequest) {
+      try {
+        // The signed request is base64 encoded
+        const parts = signedRequest.split('.');
+        if (parts.length === 2) {
+          const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          const decodedData = JSON.parse(atob(payload));
+          console.log("Decoded signed request:", decodedData);
+          if (decodedData.psid) {
+            return decodedData.psid;
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing signed request:", e);
+      }
+    }
+    return null;
+  }, []);
 
   // Wrap SDK calls to ensure proper binding
   const callSDKMethod = useCallback((methodName, ...args) => {
@@ -27,28 +51,17 @@ function App() {
     });
   }, []);
 
-  const getContextInfo = useCallback(async () => {
-    console.log("Getting context info...");
+  const getSupportedFeatures = useCallback(async () => {
     try {
-      // Try getting context directly without any permissions
-      const context = await callSDKMethod('getContext', APP_ID);
-      console.log("Context success:", context);
-      if (context && context.psid) {
-        setPsid(context.psid);
-      } else {
-        setError("Context received but no PSID found");
-      }
+      const supportedFeatures = await callSDKMethod('getSupportedFeatures');
+      console.log("Supported features:", supportedFeatures);
+      setFeatures(supportedFeatures);
+      return supportedFeatures;
     } catch (error) {
-      console.error("getContext error:", error);
-      setError(`Failed to get context: ${JSON.stringify(error)}`);
-      
-      // Only check permissions if we get a specific error
-      if (error.code === -32603) {
-        console.log("Received RPC error, checking permissions...");
-        await checkPermissions();
-      }
+      console.error("Error getting supported features:", error);
+      return null;
     }
-  }, [APP_ID, callSDKMethod]);
+  }, [callSDKMethod]);
 
   const checkPermissions = useCallback(async () => {
     console.log("Checking permissions...");
@@ -57,26 +70,23 @@ function App() {
       console.log("Current permissions:", response);
       if (!response.permissions.includes('user_profile')) {
         await askPermission();
-      } else {
-        await getContextInfo();
       }
     } catch (error) {
       console.error("Permission check failed:", error);
       await askPermission();
     }
-  }, [callSDKMethod, getContextInfo]);
+  }, [callSDKMethod]);
 
   const askPermission = useCallback(async () => {
     console.log("Requesting user_profile permission...");
     try {
       const success = await callSDKMethod('askPermission', 'user_profile');
       console.log("Permission granted:", success);
-      await getContextInfo();
     } catch (error) {
       console.error("Permission request failed:", error);
       setError(`Permission request failed: ${JSON.stringify(error)}`);
     }
-  }, [callSDKMethod, getContextInfo]);
+  }, [callSDKMethod]);
 
   useEffect(() => {
     const isInIframe = window !== window.top;
@@ -121,8 +131,18 @@ function App() {
         const methods = Object.keys(window.MessengerExtensions || {});
         console.log("Available methods:", methods);
 
-        // Try getting context first without any initialization
-        await getContextInfo();
+        // Try to get PSID from signed request first
+        const psidFromSignedRequest = getSignedRequestFromURL();
+        if (psidFromSignedRequest) {
+          console.log("Found PSID in signed request:", psidFromSignedRequest);
+          setPsid(psidFromSignedRequest);
+        }
+
+        // Get supported features
+        await getSupportedFeatures();
+        
+        // Check permissions
+        await checkPermissions();
         
         // Set SDK as ready
         setSdkReady(true);
@@ -143,7 +163,7 @@ function App() {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [APP_ID, getContextInfo]);
+  }, [APP_ID, checkPermissions, getSupportedFeatures, getSignedRequestFromURL]);
 
   return (
     <div className="App">
@@ -153,8 +173,8 @@ function App() {
         ) : (
           <div>
             <p>Error getting PSID: {error || 'Unknown error'}</p>
-            <button onClick={getContextInfo}>
-              Try Get Context
+            <button onClick={getSupportedFeatures}>
+              Check Supported Features
             </button>
             <button onClick={checkPermissions} style={{ marginLeft: '10px' }}>
               Check Permissions
@@ -163,9 +183,10 @@ function App() {
         )}
         <div className="debug-info">
           <p>MessengerExtensions available: {window.MessengerExtensions ? 'Yes' : 'No'}</p>
-          <p>MessengerExtensions.getContext available: {window.MessengerExtensions && typeof window.MessengerExtensions.getContext === 'function' ? 'Yes' : 'No'}</p>
+          <p>MessengerExtensions.getSupportedFeatures available: {window.MessengerExtensions && typeof window.MessengerExtensions.getSupportedFeatures === 'function' ? 'Yes' : 'No'}</p>
           <p>MessengerExtensions.getGrantedPermissions available: {window.MessengerExtensions && typeof window.MessengerExtensions.getGrantedPermissions === 'function' ? 'Yes' : 'No'}</p>
           <p>Available methods: {window.MessengerExtensions ? Object.keys(window.MessengerExtensions).join(', ') : 'None'}</p>
+          <p>Supported features: {features ? JSON.stringify(features) : 'Not checked yet'}</p>
           <p>Window name: {window.name}</p>
           <p>URL parameters: {window.location.search}</p>
           <p>Origin: {window.location.origin}</p>
