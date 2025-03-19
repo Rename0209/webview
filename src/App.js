@@ -88,6 +88,89 @@ function App() {
     }
   }, [callSDKMethod]);
 
+  // Try to get context from Messenger Extensions
+  const getContextFromMessenger = useCallback(async () => {
+    try {
+      // First check if context feature is supported
+      const features = await callSDKMethod('getSupportedFeatures');
+      console.log("Checking if context feature is supported:", features);
+      
+      if (!features.supported_features.includes('context')) {
+        console.warn("Context feature is not supported on this client");
+        return null;
+      }
+
+      // If context is supported, try to get it
+      const context = await new Promise((resolve, reject) => {
+        window.MessengerExtensions.getContext(
+          APP_ID,
+          (result) => {
+            console.log("Got context result:", result);
+            resolve(result);
+          },
+          (error) => {
+            console.error("Failed to get context:", error);
+            reject(error);
+          }
+        );
+      });
+
+      if (context && context.psid) {
+        return context.psid;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("Error getting context:", error);
+      return null;
+    }
+  }, [APP_ID]);
+
+  const initMessenger = async () => {
+    try {
+      console.log("MessengerExtensions found, checking methods...");
+      
+      // Check available methods
+      const methods = Object.keys(window.MessengerExtensions || {});
+      console.log("Available methods:", methods);
+
+      // Try multiple approaches to get PSID
+      let psidFound = null;
+
+      // 1. Try signed request first
+      psidFound = getSignedRequestFromURL();
+      if (psidFound) {
+        console.log("Found PSID in signed request:", psidFound);
+        setPsid(psidFound);
+        return;
+      }
+
+      // 2. Try getting context
+      psidFound = await getContextFromMessenger();
+      if (psidFound) {
+        console.log("Found PSID from context:", psidFound);
+        setPsid(psidFound);
+        return;
+      }
+
+      // Get supported features for debugging
+      await getSupportedFeatures();
+      
+      // Check permissions as fallback
+      await checkPermissions();
+      
+      // Set SDK as ready
+      setSdkReady(true);
+
+      if (!psidFound) {
+        setError("Could not retrieve PSID through any available method");
+      }
+    } catch (e) {
+      console.error("Initialization failed:", e);
+      setError(`Initialization failed: ${e.message}`);
+    }
+  };
+
   useEffect(() => {
     const isInIframe = window !== window.top;
     console.log("Is in iframe:", isInIframe);
@@ -120,35 +203,6 @@ function App() {
         } catch (e) {
           console.error("Failed to parse RPC message:", e);
         }
-      }
-    };
-
-    const initMessenger = async () => {
-      try {
-        console.log("MessengerExtensions found, checking methods...");
-        
-        // Check available methods
-        const methods = Object.keys(window.MessengerExtensions || {});
-        console.log("Available methods:", methods);
-
-        // Try to get PSID from signed request first
-        const psidFromSignedRequest = getSignedRequestFromURL();
-        if (psidFromSignedRequest) {
-          console.log("Found PSID in signed request:", psidFromSignedRequest);
-          setPsid(psidFromSignedRequest);
-        }
-
-        // Get supported features
-        await getSupportedFeatures();
-        
-        // Check permissions
-        await checkPermissions();
-        
-        // Set SDK as ready
-        setSdkReady(true);
-      } catch (e) {
-        console.error("Initialization failed:", e);
-        setError(`Initialization failed: ${e.message}`);
       }
     };
 
