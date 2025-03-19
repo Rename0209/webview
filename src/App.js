@@ -3,34 +3,31 @@ import './App.css';
 import { MESSENGER_CONFIG } from './config';
 
 function App() {
-  const [userId, setUserId] = useState(null);
+  const [context, setContext] = useState(null);
   const [error, setError] = useState(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [features, setFeatures] = useState(null);
   const { APP_ID } = MESSENGER_CONFIG;
 
-  const getUserId = useCallback(() => {
+  const getContext = useCallback(() => {
     if (!window.MessengerExtensions) {
       setError("MessengerExtensions not available");
       return;
     }
 
-    window.MessengerExtensions.getUserID(
-      (uids) => {
-        console.log("User ID result:", uids);
-        if (uids.length > 0) {
-          setUserId(uids[0]);
-          setError(null);
-        } else {
-          setError("No user ID returned");
-        }
+    window.MessengerExtensions.getContext(
+      APP_ID,
+      (thread_context) => {
+        console.log("Context result:", thread_context);
+        setContext(thread_context);
+        setError(null);
       },
       (err) => {
-        console.error("getUserID error:", err);
+        console.error("Context error:", err);
         setError(err.message || JSON.stringify(err));
       }
     );
-  }, []);
+  }, [APP_ID]);
 
   const getSupportedFeatures = useCallback(async () => {
     try {
@@ -82,26 +79,30 @@ function App() {
       // Add a small delay to ensure everything is ready
       setTimeout(() => {
         getSupportedFeatures();
-        getUserId();
+        getContext();
       }, 1000);
     }
 
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [getSupportedFeatures, getUserId]);
+  }, [getSupportedFeatures, getContext]);
 
   return (
     <div className="App">
       <header className="App-header">
         <div>
-          {userId ? (
-            <p>Your User ID: {userId}</p>
+          {context ? (
+            <div>
+              <p>Thread Type: {context.thread_type}</p>
+              <p>Thread ID: {context.tid}</p>
+              <p>PSID: {context.psid}</p>
+            </div>
           ) : (
-            <p>Error: {error || 'Trying to get User ID...'}</p>
+            <p>Error: {error || 'Trying to get context...'}</p>
           )}
-          <button onClick={getUserId}>
-            Get User ID
+          <button onClick={getContext}>
+            Get Context
           </button>
           <button onClick={getSupportedFeatures} style={{ marginLeft: '10px' }}>
             Check Features
@@ -117,6 +118,9 @@ function App() {
           <p>Protocol: {window.location.protocol}</p>
           <p>SDK Ready: {sdkReady ? 'Yes' : 'No'}</p>
           <p>Supported Features: {features ? JSON.stringify(features) : 'Not checked yet'}</p>
+          {context && (
+            <p>Full Context: {JSON.stringify(context, null, 2)}</p>
+          )}
         </div>
       </header>
     </div>
