@@ -25,16 +25,15 @@
     </style>
   </head>
   <body>
-    <div class="container" id="app">
-        <div id="error-message" class="error-message"></div>
-        <!-- Your app content here -->
-    </div>
+    <div id="root"></div>
 
     <!-- Messenger Extensions SDK -->
     <script>
         window.extAsyncInit = function() {
             // Messenger Extensions JS SDK is done loading
             console.log('Messenger Extensions SDK loaded');
+            // Dispatch an event when SDK is loaded
+            window.dispatchEvent(new Event('MessengerSDKLoaded'));
         };
         
         (function(d, s, id){
