@@ -5,22 +5,28 @@ const ENCRYPTION_KEY = 'superkeyahafood1'; // This should match the key used for
 
 export const decryptToken = (encryptedToken) => {
   try {
-    // First decode the URL-safe token by replacing URL-safe chars
-    const normalizedToken = encryptedToken
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-
+    // Convert the hex token to CryptoJS format
+    const ciphertext = CryptoJS.enc.Hex.parse(encryptedToken);
+    
     // Create key from the secret phrase
     const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
 
     // Decrypt the token using AES
-    const decryptedData = CryptoJS.AES.decrypt(normalizedToken, key, {
-      mode: CryptoJS.mode.ECB,          // Using ECB mode
-      padding: CryptoJS.pad.Pkcs7       // PKCS7 padding (same as PKCS5 for AES)
-    });
+    const decryptedData = CryptoJS.AES.decrypt(
+      { ciphertext: ciphertext },
+      key,
+      {
+        mode: CryptoJS.mode.ECB,
+        padding: CryptoJS.pad.Pkcs7
+      }
+    );
 
     // Convert the decrypted data to UTF-8 string
-    return decryptedData.toString(CryptoJS.enc.Utf8);
+    const result = decryptedData.toString(CryptoJS.enc.Utf8);
+    if (!result) {
+      throw new Error('Decryption resulted in empty string');
+    }
+    return result;
   } catch (error) {
     console.error('Decryption error:', error);
     return null;
@@ -29,14 +35,17 @@ export const decryptToken = (encryptedToken) => {
 
 export const encryptToken = (plainText) => {
   try {
+    // Create key from the secret phrase
+    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
+
     // Encrypt the plain text using AES
-    const encryptedData = CryptoJS.AES.encrypt(plainText, CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY), {
+    const encryptedData = CryptoJS.AES.encrypt(plainText, key, {
       mode: CryptoJS.mode.ECB,
       padding: CryptoJS.pad.Pkcs7,
     });
     
-    // Convert encrypted data to base64 string
-    return encryptedData.toString();
+    // Convert encrypted data to hex string
+    return encryptedData.ciphertext.toString();
   } catch (error) {
     console.error('Encryption error:', error);
     return null;
