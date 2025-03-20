@@ -30,29 +30,28 @@
     <!-- Messenger Extensions SDK -->
     <script>
         window.extAsyncInit = function() {
+            // Messenger Extensions JS SDK is done loading
             console.log('Messenger Extensions SDK loaded');
-            MessengerExtensions.getContext('415798671014705',
-                function success(context) {
-                    console.log('Messenger context:', context);
-                    // Successfully initialized
-                    window.dispatchEvent(new Event('MessengerSDKLoaded'));
-                },
-                function error(err) {
-                    console.error('Failed to get context:', err);
-                    const errorDiv = document.createElement('div');
-                    errorDiv.style.color = 'red';
-                    errorDiv.style.padding = '10px';
-                    errorDiv.textContent = 'Failed to initialize Messenger context: ' + JSON.stringify(err);
-                    document.body.insertBefore(errorDiv, document.body.firstChild);
-                }
-            );
+            
+            if (window.MessengerExtensions) {
+                console.log('MessengerExtensions is available');
+                // Successfully initialized
+                window.dispatchEvent(new Event('MessengerSDKLoaded'));
+            } else {
+                console.error('MessengerExtensions not available');
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = 'red';
+                errorDiv.style.padding = '10px';
+                errorDiv.textContent = 'MessengerExtensions not available';
+                document.body.insertBefore(errorDiv, document.body.firstChild);
+            }
         };
         
         (function(d, s, id){
             var js, fjs = d.getElementsByTagName(s)[0];
             if (d.getElementById(id)) {return;}
             js = d.createElement(s); js.id = id;
-            js.src = "//connect.facebook.net/en_US/messenger.Extensions.js";
+            js.src = "https://connect.facebook.net/en_US/messenger.Extensions.js";
             fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'Messenger'));
     </script>
