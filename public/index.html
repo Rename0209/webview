@@ -17,34 +17,59 @@
             max-width: 100%;
             box-sizing: border-box;
         }
-        .error-message {
-            color: red;
+        .status-message {
             padding: 10px;
-            display: none;
+            margin: 10px;
+            border-radius: 4px;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+        .info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #90caf9;
         }
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+        <div id="status-container"></div>
+    </div>
 
     <!-- Messenger Extensions SDK -->
     <script>
+        function showStatus(message, type = 'info') {
+            const container = document.getElementById('status-container');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.textContent = message;
+            container.appendChild(statusDiv);
+        }
+
+        // Immediately show window.name
+        showStatus(`Current window.name: ${window.name || 'not set'}`);
+        showStatus(`Running environment: ${
+            window.name === 'messenger_ref' ? 'Messenger Web' :
+            window.name === 'facebook_ref' ? 'Facebook Chat Tab' :
+            'Unknown Environment'
+        }`);
+
         window.extAsyncInit = function() {
-            // Messenger Extensions JS SDK is done loading
-            console.log('Messenger Extensions SDK loaded');
+            showStatus('Messenger Extensions SDK loaded');
             
             if (window.MessengerExtensions) {
-                console.log('MessengerExtensions is available');
+                showStatus('MessengerExtensions is available');
                 // Successfully initialized
                 window.dispatchEvent(new Event('MessengerSDKLoaded'));
             } else {
-                console.error('MessengerExtensions not available');
-                const errorDiv = document.createElement('div');
-                errorDiv.style.color = 'red';
-                errorDiv.style.padding = '10px';
-                errorDiv.textContent = 'MessengerExtensions not available';
-                document.body.insertBefore(errorDiv, document.body.firstChild);
+                showStatus('MessengerExtensions not available', 'error');
             }
+
+            // Show window.name again after SDK loads
+            showStatus(`Window name after SDK load: ${window.name || 'not set'}`);
         };
         
         (function(d, s, id){
@@ -61,11 +86,7 @@
             // Add a timeout to check if SDK loaded
             setTimeout(function() {
                 if (!window.MessengerExtensions) {
-                    const errorDiv = document.createElement('div');
-                    errorDiv.style.color = 'red';
-                    errorDiv.style.padding = '10px';
-                    errorDiv.textContent = 'Messenger Extensions SDK failed to load';
-                    document.body.insertBefore(errorDiv, document.body.firstChild);
+                    showStatus('Messenger Extensions SDK failed to load', 'error');
                 }
             }, 3000);
         });
