@@ -5,11 +5,16 @@ const ENCRYPTION_KEY = 'superkeyahafood1'; // This should match the key used for
 
 export const decryptToken = (encryptedToken) => {
   try {
+    // First decode the URL-safe token by replacing URL-safe chars
+    const normalizedToken = encryptedToken
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
     // Create key from the secret phrase
     const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
 
     // Decrypt the token using AES
-    const decryptedData = CryptoJS.AES.decrypt(encryptedToken, key, {
+    const decryptedData = CryptoJS.AES.decrypt(normalizedToken, key, {
       mode: CryptoJS.mode.ECB,          // Using ECB mode
       padding: CryptoJS.pad.Pkcs7       // PKCS7 padding (same as PKCS5 for AES)
     });
