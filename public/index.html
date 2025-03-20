@@ -30,9 +30,22 @@
     <!-- Messenger Extensions SDK -->
     <script>
         window.extAsyncInit = function() {
+            // Check if running in Messenger
+            const isMessenger = window.name === "messenger_ref" || window.name === "facebook_ref";
+            console.log('Running in Messenger:', isMessenger);
+            
+            if (!isMessenger) {
+                console.warn('Not running in Messenger webview');
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = 'red';
+                errorDiv.style.padding = '10px';
+                errorDiv.textContent = 'This page must be opened in Messenger';
+                document.body.insertBefore(errorDiv, document.body.firstChild);
+                return;
+            }
+
             // Messenger Extensions JS SDK is done loading
             console.log('Messenger Extensions SDK loaded');
-            // Dispatch an event when SDK is loaded
             window.dispatchEvent(new Event('MessengerSDKLoaded'));
         };
         
@@ -40,7 +53,7 @@
             var js, fjs = d.getElementsByTagName(s)[0];
             if (d.getElementById(id)) {return;}
             js = d.createElement(s); js.id = id;
-            js.src = "https://connect.facebook.com/en_US/messenger.Extensions.js";
+            js.src = "//connect.facebook.net/en_US/messenger.Extensions.js";
             fjs.parentNode.insertBefore(js, fjs);
         }(document, 'script', 'Messenger'));
     </script>

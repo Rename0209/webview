@@ -2,8 +2,30 @@
 
 export const checkMessengerSDK = () => {
   return new Promise((resolve) => {
-    if (window.MessengerExtensions) {
-      // Check if Messenger Extensions are properly loaded
+    if (!window.MessengerExtensions) {
+      console.warn('MessengerExtensions not available in window object');
+      resolve({
+        available: false,
+        context: null,
+        error: 'MessengerExtensions not available'
+      });
+      return;
+    }
+
+    // First check if we're running in Messenger
+    if (window.name !== "messenger_ref" && window.name !== "facebook_ref") {
+      resolve({
+        available: false,
+        context: null,
+        error: 'Not running in Messenger webview'
+      });
+      return;
+    }
+
+    // Check if Messenger Extensions are properly loaded
+    window.MessengerExtensions.getSupportedFeatures((feature_list) => {
+      console.log("Supported features:", feature_list);
+      
       window.MessengerExtensions.getContext('415798671014705',  // Facebook App ID
         function success(context) {
           console.log('Messenger context:', context);
@@ -22,33 +44,27 @@ export const checkMessengerSDK = () => {
           });
         }
       );
-    } else {
-      console.warn('MessengerExtensions not available in window object');
-      resolve({
-        available: false,
-        context: null,
-        error: 'MessengerExtensions not available'
-      });
-    }
+    });
   });
 };
 
-export const configureWebView = () => {
+export const closeWebView = () => {
   return new Promise((resolve, reject) => {
-    if (window.MessengerExtensions) {
-      window.MessengerExtensions.requestCloseBrowser(
-        function success() {
-          console.log("Webview closed");
-          resolve();
-        },
-        function error(err) {
-          console.error("Failed to close webview:", err);
-          reject(err);
-        }
-      );
-    } else {
+    if (!window.MessengerExtensions) {
       reject(new Error('MessengerExtensions not available'));
+      return;
     }
+
+    window.MessengerExtensions.requestCloseBrowser(
+      function success() {
+        console.log("Webview closed successfully");
+        resolve();
+      },
+      function error(err) {
+        console.error("Failed to close webview:", err);
+        reject(err);
+      }
+    );
   });
 };
 
