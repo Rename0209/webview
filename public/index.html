@@ -21,6 +21,7 @@
             padding: 10px;
             margin: 10px;
             border-radius: 4px;
+            word-break: break-all;
         }
         .error {
             background-color: #ffebee;
@@ -41,55 +42,95 @@
 
     <!-- Messenger Extensions SDK -->
     <script>
+        let statusContainer = null;
+
         function showStatus(message, type = 'info') {
-            const container = document.getElementById('status-container');
+            if (!statusContainer) {
+                statusContainer = document.getElementById('status-container');
+            }
+            if (!statusContainer) {
+                console.error('Status container not found');
+                return;
+            }
             const statusDiv = document.createElement('div');
             statusDiv.className = `status-message ${type}`;
             statusDiv.textContent = message;
-            container.appendChild(statusDiv);
+            statusContainer.appendChild(statusDiv);
+            console.log(type + ':', message); // Also log to console
         }
 
-        // Immediately show window.name
-        showStatus(`Current window.name: ${window.name || 'not set'}`);
-        showStatus(`Running environment: ${
-            window.name === 'messenger_ref' ? 'Messenger Web' :
-            window.name === 'facebook_ref' ? 'Facebook Chat Tab' :
-            'Unknown Environment'
-        }`);
-
-        window.extAsyncInit = function() {
-            showStatus('Messenger Extensions SDK loaded');
+        function checkMessengerEnvironment() {
+            // Show all available window properties for debugging
+            showStatus('Window properties:', 'info');
+            showStatus(`window.name: ${window.name}`, 'info');
+            showStatus(`window.top === window: ${window.top === window}`, 'info');
+            showStatus(`window.parent === window: ${window.parent === window}`, 'info');
+            showStatus(`document.referrer: ${document.referrer}`, 'info');
             
-            if (window.MessengerExtensions) {
-                showStatus('MessengerExtensions is available');
-                // Successfully initialized
-                window.dispatchEvent(new Event('MessengerSDKLoaded'));
-            } else {
-                showStatus('MessengerExtensions not available', 'error');
-            }
+            // Check environment
+            const environment = 
+                window.name === 'messenger_ref' ? 'Messenger Web' :
+                window.name === 'facebook_ref' ? 'Facebook Chat Tab' :
+                'Unknown Environment';
+            
+            showStatus(`Running in: ${environment}`, 'info');
+        }
 
-            // Show window.name again after SDK loads
-            showStatus(`Window name after SDK load: ${window.name || 'not set'}`);
+        // Wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                checkMessengerEnvironment();
+            } catch (error) {
+                showStatus('Error checking environment: ' + error.message, 'error');
+            }
+        });
+
+        // Messenger SDK initialization
+        window.extAsyncInit = function() {
+            try {
+                showStatus('Messenger Extensions SDK loaded');
+                
+                if (window.MessengerExtensions) {
+                    showStatus('MessengerExtensions is available');
+                    
+                    // Check supported features
+                    window.MessengerExtensions.getSupportedFeatures(function success(result) {
+                        showStatus('Supported features: ' + JSON.stringify(result), 'info');
+                    }, function error(err) {
+                        showStatus('Error getting supported features: ' + JSON.stringify(err), 'error');
+                    });
+                } else {
+                    showStatus('MessengerExtensions not available', 'error');
+                }
+            } catch (error) {
+                showStatus('Error in extAsyncInit: ' + error.message, 'error');
+            }
         };
         
+        // Load the Messenger Extensions SDK
         (function(d, s, id){
-            var js, fjs = d.getElementsByTagName(s)[0];
-            if (d.getElementById(id)) {return;}
-            js = d.createElement(s); js.id = id;
-            js.src = "https://connect.facebook.net/en_US/messenger.Extensions.js";
-            fjs.parentNode.insertBefore(js, fjs);
-        }(document, 'script', 'Messenger'));
-    </script>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add a timeout to check if SDK loaded
-            setTimeout(function() {
-                if (!window.MessengerExtensions) {
-                    showStatus('Messenger Extensions SDK failed to load', 'error');
+            try {
+                var js, fjs = d.getElementsByTagName(s)[0];
+                if (d.getElementById(id)) {return;}
+                js = d.createElement(s); js.id = id;
+                js.src = "https://connect.facebook.net/en_US/messenger.Extensions.js";
+                if (fjs && fjs.parentNode) {
+                    fjs.parentNode.insertBefore(js, fjs);
+                    showStatus('SDK script tag added');
+                } else {
+                    showStatus('Could not find parent node for SDK script', 'error');
                 }
-            }, 3000);
-        });
+            } catch (error) {
+                showStatus('Error loading SDK: ' + error.message, 'error');
+            }
+        }(document, 'script', 'Messenger'));
+
+        // Add timeout check
+        setTimeout(function() {
+            if (!window.MessengerExtensions) {
+                showStatus('Messenger Extensions SDK failed to load after timeout', 'error');
+            }
+        }, 5000);
     </script>
   </body>
 </html> 
