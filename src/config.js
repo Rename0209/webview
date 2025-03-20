@@ -1,4 +1,1 @@
-export const MESSENGER_CONFIG = {
-  APP_ID: '415798671014705',
-  // Add other Messenger-related configuration here
-}; 
+// This file can be empty now or removed since we're not using Messenger SDK anymore 
