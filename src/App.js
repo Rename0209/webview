@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import './App.css';
+import { decryptToken } from './utils/encryption';
 
 function App() {
   const [token, setToken] = useState(null);
+  const [decryptedPSID, setDecryptedPSID] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -13,6 +15,15 @@ function App() {
     if (tokenParam) {
       console.log("Token found in URL:", tokenParam);
       setToken(tokenParam);
+      
+      // Decrypt the token to get PSID
+      const psid = decryptToken(tokenParam);
+      if (psid) {
+        console.log("Decrypted PSID:", psid);
+        setDecryptedPSID(psid);
+      } else {
+        setError("Failed to decrypt token");
+      }
     } else {
       console.log("No token found in URL parameters");
       setError("No token found in URL parameters");
@@ -25,10 +36,12 @@ function App() {
         <div>
           {token ? (
             <div>
-              <p>Token: {token}</p>
-              <p style={{ fontSize: '0.8em', color: '#666' }}>
-                This token will be decrypted later to get the PSID
-              </p>
+              <p>Encrypted Token: {token}</p>
+              {decryptedPSID ? (
+                <p>Decrypted PSID: {decryptedPSID}</p>
+              ) : (
+                <p style={{ color: 'red' }}>Error: {error || 'Failed to decrypt token'}</p>
+              )}
             </div>
           ) : (
             <p style={{ color: 'red' }}>Error: {error || 'No token available'}</p>
