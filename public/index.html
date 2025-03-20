@@ -30,23 +30,22 @@
     <!-- Messenger Extensions SDK -->
     <script>
         window.extAsyncInit = function() {
-            // Check if running in Messenger
-            const isMessenger = window.name === "messenger_ref" || window.name === "facebook_ref";
-            console.log('Running in Messenger:', isMessenger);
-            
-            if (!isMessenger) {
-                console.warn('Not running in Messenger webview');
-                const errorDiv = document.createElement('div');
-                errorDiv.style.color = 'red';
-                errorDiv.style.padding = '10px';
-                errorDiv.textContent = 'This page must be opened in Messenger';
-                document.body.insertBefore(errorDiv, document.body.firstChild);
-                return;
-            }
-
-            // Messenger Extensions JS SDK is done loading
             console.log('Messenger Extensions SDK loaded');
-            window.dispatchEvent(new Event('MessengerSDKLoaded'));
+            MessengerExtensions.getContext('415798671014705',
+                function success(context) {
+                    console.log('Messenger context:', context);
+                    // Successfully initialized
+                    window.dispatchEvent(new Event('MessengerSDKLoaded'));
+                },
+                function error(err) {
+                    console.error('Failed to get context:', err);
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.color = 'red';
+                    errorDiv.style.padding = '10px';
+                    errorDiv.textContent = 'Failed to initialize Messenger context: ' + JSON.stringify(err);
+                    document.body.insertBefore(errorDiv, document.body.firstChild);
+                }
+            );
         };
         
         (function(d, s, id){
@@ -58,24 +57,18 @@
         }(document, 'script', 'Messenger'));
     </script>
 
-    <script type="module">
-        import { initializeMessenger } from '../src/utils/messenger.js';
-
-        // Initialize when document is ready
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                const isMessengerAvailable = await initializeMessenger();
-                if (!isMessengerAvailable) {
-                    const errorDiv = document.getElementById('error-message');
-                    errorDiv.style.display = 'block';
-                    errorDiv.textContent = 'This page must be run within the Messenger Platform';
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add a timeout to check if SDK loaded
+            setTimeout(function() {
+                if (!window.MessengerExtensions) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.color = 'red';
+                    errorDiv.style.padding = '10px';
+                    errorDiv.textContent = 'Messenger Extensions SDK failed to load';
+                    document.body.insertBefore(errorDiv, document.body.firstChild);
                 }
-            } catch (error) {
-                console.error('Initialization error:', error);
-                const errorDiv = document.getElementById('error-message');
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'Failed to initialize Messenger Extensions';
-            }
+            }, 3000);
         });
     </script>
   </body>
