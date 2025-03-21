@@ -37,6 +37,17 @@ function App() {
     return timeDiffMinutes < TIMEOUT_MINUTES;
   };
 
+  const checkSessionExpiration = async (psid, timestamp) => {
+    try {
+      const response = await fetch(`https://redis-session-manage.onrender.com/session/${psid}/${timestamp}`);
+      const data = await response.json();
+      return data.isExpired;
+    } catch (error) {
+      console.error('Error checking session expiration:', error);
+      return true; // Assume expired on error
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -46,14 +57,37 @@ function App() {
       return;
     }
 
-    // Get current timestamp and check session
-    const currentTimestamp = Math.floor(Date.now() / 1000);
+    // Get timestamp from URL and check if expired
     const urlParams = new URLSearchParams(window.location.search);
     const timestamp = parseInt(urlParams.get('timestamp'), 10);
+    const currentTime = Math.floor(Date.now() / 1000);
     
-    if (!validateSession(urlParams.get('token'), timestamp)) {
-      setIsExpired(true);
-      return;
+    // Check local timestamp validation
+    const isValid = validateSession(urlParams.get('token'), timestamp);
+    
+    if (isValid) {
+      // If valid, send data to backend
+      try {
+        await fetch('https://redis-session-manage.onrender.com/session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            psid: userPsid,
+            timestamp: currentTime
+          })
+        });
+      } catch (error) {
+        console.error('Error submitting form:', error);
+      }
+    } else {
+      // If invalid, check with backend
+      const isExpired = await checkSessionExpiration(userPsid, timestamp);
+      if (isExpired) {
+        setIsExpired(true);
+        return;
+      }
     }
     
     const formData = {
@@ -65,7 +99,7 @@ function App() {
       zipCode: e.target.zipCode.value,
       country: e.target.country.value,
       psid: userPsid,
-      submittedAt: currentTimestamp
+      submittedAt: currentTime
     };
     
     console.log('Form submitted:', formData);
@@ -102,13 +136,6 @@ function App() {
         return;
       }
 
-      // Validate session first
-      const isValid = await validateSession(encryptedToken, timestamp);
-      if (!isValid) {
-        setIsExpired(true);
-        return;
-      }
-
       try {
         // Decrypt token to get PSID using the imported decryption function
         const decryptedPsid = decryptToken(encryptedToken);
@@ -118,6 +145,34 @@ function App() {
 
         setUserPsid(decryptedPsid);
         console.log('Session initialized with PSID:', decryptedPsid);
+
+        // Check local timestamp validation
+        const isValid = await validateSession(encryptedToken, timestamp);
+        
+        if (isValid) {
+          // If valid, send data to backend
+          try {
+            await fetch('https://redis-session-manage.onrender.com/session', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                psid: decryptedPsid,
+                timestamp: Math.floor(Date.now() / 1000)
+              })
+            });
+          } catch (error) {
+            console.error('Error submitting form:', error);
+          }
+        } else {
+          // If invalid, check with backend
+          const isExpired = await checkSessionExpiration(decryptedPsid, timestamp);
+          if (isExpired) {
+            setIsExpired(true);
+            return;
+          }
+        }
       } catch (error) {
         console.error('Error initializing session:', error);
         setIsExpired(true);
