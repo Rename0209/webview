@@ -90,7 +90,7 @@
     <!-- Our form container (shown) -->
     <div id="address-form-container" class="form-container">
       <div id="timeoutWarning" class="timeout-warning">
-        Your session will expire in <span id="timeLeft">20:00</span>. Please complete the form soon.
+        Your session has expired. Please try again.
       </div>
       <h1>Address Information</h1>
       <form id="addressForm">
@@ -140,39 +140,30 @@
     <script>
       // Process the token in the background
       let userPsid = '';
-      let timeoutInterval;
-      let timeLeft = 20 * 60; // 20 minutes in seconds
-      const warningThreshold = 5 * 60; // 5 minutes warning threshold
+      const TIMEOUT_MINUTES = 20;
       
-      function updateTimer() {
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        document.getElementById('timeLeft').textContent = 
-          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      function checkTimestamp(timestamp) {
+        const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+        const timeDiff = currentTime - timestamp; // Difference in seconds
+        const timeDiffMinutes = timeDiff / 60; // Convert to minutes
         
-        // Show warning when less than 5 minutes remaining
-        if (timeLeft <= warningThreshold) {
+        console.log('Current time:', currentTime);
+        console.log('Timestamp from URL:', timestamp);
+        console.log('Time difference (minutes):', timeDiffMinutes);
+        
+        if (timeDiffMinutes > TIMEOUT_MINUTES) {
           document.getElementById('timeoutWarning').style.display = 'block';
+          document.getElementById('addressForm').style.display = 'none';
+          return false;
         }
-        
-        if (timeLeft <= 0) {
-          clearInterval(timeoutInterval);
-          alert('Session expired. Please try again.');
-          // Optionally redirect or close the webview
-          window.close();
-        }
-      }
-      
-      function resetTimer() {
-        timeLeft = 20 * 60;
-        document.getElementById('timeoutWarning').style.display = 'none';
-        updateTimer();
+        return true;
       }
       
       document.addEventListener('DOMContentLoaded', function() {
-        // Get the token from URL without displaying it
+        // Get the token and timestamp from URL
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
+        const timestamp = parseInt(urlParams.get('timestamp'));
         
         if (token) {
           try {
@@ -185,24 +176,25 @@
           }
         }
         
-        // Start the timer
-        updateTimer();
-        timeoutInterval = setInterval(() => {
-          timeLeft--;
-          updateTimer();
-        }, 1000);
-        
-        // Reset timer on user interaction
-        const formElements = document.querySelectorAll('input, select, button');
-        formElements.forEach(element => {
-          element.addEventListener('input', resetTimer);
-          element.addEventListener('change', resetTimer);
-          element.addEventListener('click', resetTimer);
-        });
+        // Check if timestamp is valid and not expired
+        if (timestamp && !isNaN(timestamp)) {
+          if (!checkTimestamp(timestamp)) {
+            return; // Stop form initialization if expired
+          }
+        } else {
+          console.error('Invalid or missing timestamp');
+          return;
+        }
         
         // Handle form submission
         document.getElementById('addressForm').addEventListener('submit', function(e) {
           e.preventDefault();
+          
+          // Check timestamp again before submission
+          if (!checkTimestamp(timestamp)) {
+            alert('Session expired. Please try again.');
+            return;
+          }
           
           // Get form data and include the PSID
           const formData = {
@@ -222,9 +214,6 @@
           
           // Show success message
           alert('Address confirmed successfully!');
-          
-          // Clear the timer
-          clearInterval(timeoutInterval);
           
           // In a real app, you would send this data to your server
           // along with the PSID to associate the address with the user
