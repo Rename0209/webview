@@ -102,19 +102,41 @@ function App() {
       sessionTimestamp: timestamp
     };
     
-    console.log('Form submitted:', formData);
-    setIsSubmitted(true);
-    alert('Address confirmed successfully!');
-    
-    // Close the webview
-    if (window.MessengerExtensions) {
-      window.MessengerExtensions.requestCloseBrowser(function success() {
-        console.log('Webview closed successfully');
-      }, function error(err) {
-        console.error('Error closing webview:', err);
+    // Send form data to MongoDB server
+    try {
+      const response = await fetch('https://mongodb-manage.onrender.com/api/address', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
       });
-    } else {
-      console.log('MessengerExtensions not available, webview will not close');
+
+      if (!response.ok) {
+        throw new Error('Failed to submit address data');
+      }
+
+      // Get and log the response data from MongoDB server
+      const responseData = await response.json();
+      console.log('MongoDB Server Response:', responseData);
+
+      console.log('Form submitted successfully:', formData);
+      setIsSubmitted(true);
+      alert('Address confirmed successfully!');
+      
+      // Close the webview
+      if (window.MessengerExtensions) {
+        window.MessengerExtensions.requestCloseBrowser(function success() {
+          console.log('Webview closed successfully');
+        }, function error(err) {
+          console.error('Error closing webview:', err);
+        });
+      } else {
+        console.log('MessengerExtensions not available, webview will not close');
+      }
+    } catch (error) {
+      console.error('Error submitting address data:', error);
+      alert('Failed to submit address. Please try again.');
     }
   };
 
