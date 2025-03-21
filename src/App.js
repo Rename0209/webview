@@ -5,9 +5,10 @@ import './App.css';
 function App() {
   const [isExpired, setIsExpired] = useState(false);
   const [userPsid, setUserPsid] = useState('');
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const TIMEOUT_MINUTES = 20;
 
-  const validateSession = (token, timestamp) => {
+  const validateSession = async (token, timestamp) => {
     if (!token || !timestamp || isNaN(timestamp)) {
       console.error('Invalid session parameters:', { token, timestamp });
       return false;
@@ -36,9 +37,15 @@ function App() {
     return timeDiffMinutes < TIMEOUT_MINUTES;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Prevent multiple submissions
+    if (isSubmitted) {
+      console.log('Form already submitted');
+      return;
+    }
+
     // Get current timestamp and check session
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const urlParams = new URLSearchParams(window.location.search);
@@ -62,45 +69,62 @@ function App() {
     };
     
     console.log('Form submitted:', formData);
+    setIsSubmitted(true);
     alert('Address confirmed successfully!');
+    
+    // Close the webview
+    if (window.MessengerExtensions) {
+      window.MessengerExtensions.requestCloseBrowser(function success() {
+        console.log('Webview closed successfully');
+      }, function error(err) {
+        console.error('Error closing webview:', err);
+      });
+    } else {
+      console.log('MessengerExtensions not available, webview will not close');
+    }
   };
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const encryptedToken = urlParams.get('token');
-    const timestamp = parseInt(urlParams.get('timestamp'), 10);
-    
-    console.log('URL Parameters:', {
-      token: encryptedToken ? 'exists' : 'missing',
-      timestamp,
-      raw: window.location.search
-    });
+    const initializeApp = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const encryptedToken = urlParams.get('token');
+      const timestamp = parseInt(urlParams.get('timestamp'), 10);
+      
+      console.log('URL Parameters:', {
+        token: encryptedToken ? 'exists' : 'missing',
+        timestamp,
+        raw: window.location.search
+      });
 
-    if (!encryptedToken || !timestamp) {
-      console.error('Missing required parameters');
-      setIsExpired(true);
-      return;
-    }
-
-    // Validate session first
-    if (!validateSession(encryptedToken, timestamp)) {
-      setIsExpired(true);
-      return;
-    }
-
-    try {
-      // Decrypt token to get PSID using the imported decryption function
-      const decryptedPsid = decryptToken(encryptedToken);
-      if (!decryptedPsid) {
-        throw new Error('Failed to decrypt token');
+      if (!encryptedToken || !timestamp) {
+        console.error('Missing required parameters');
+        setIsExpired(true);
+        return;
       }
 
-      setUserPsid(decryptedPsid);
-      console.log('Session initialized with PSID:', decryptedPsid);
-    } catch (error) {
-      console.error('Error initializing session:', error);
-      setIsExpired(true);
-    }
+      // Validate session first
+      const isValid = await validateSession(encryptedToken, timestamp);
+      if (!isValid) {
+        setIsExpired(true);
+        return;
+      }
+
+      try {
+        // Decrypt token to get PSID using the imported decryption function
+        const decryptedPsid = decryptToken(encryptedToken);
+        if (!decryptedPsid) {
+          throw new Error('Failed to decrypt token');
+        }
+
+        setUserPsid(decryptedPsid);
+        console.log('Session initialized with PSID:', decryptedPsid);
+      } catch (error) {
+        console.error('Error initializing session:', error);
+        setIsExpired(true);
+      }
+    };
+
+    initializeApp();
   }, []); // Run once on component mount
 
   // If session is expired, only show the warning
@@ -114,7 +138,18 @@ function App() {
     );
   }
 
-  // Only show form if session is valid
+  // If form was already submitted, show success message
+  if (isSubmitted) {
+    return (
+      <div className="form-container">
+        <div className="success-message">
+          Address already confirmed. Thank you!
+        </div>
+      </div>
+    );
+  }
+
+  // Only show form if session is valid and not submitted
   return (
     <div className="form-container">
       <h1>Address Information</h1>
