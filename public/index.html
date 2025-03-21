@@ -80,6 +80,7 @@
             border-radius: 4px;
             margin-bottom: 15px;
             text-align: center;
+            font-weight: bold;
         }
     </style>
   </head>
@@ -142,18 +143,32 @@
       let userPsid = '';
       const TIMEOUT_MINUTES = 20;
       
+      function showTimeoutWarning() {
+        document.getElementById('timeoutWarning').style.display = 'block';
+        document.getElementById('addressForm').style.display = 'none';
+      }
+      
       function checkTimestamp(timestamp) {
+        if (!timestamp || isNaN(timestamp)) {
+          console.error('Invalid timestamp:', timestamp);
+          showTimeoutWarning();
+          return false;
+        }
+        
         const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
         const timeDiff = currentTime - timestamp; // Difference in seconds
-        const timeDiffMinutes = timeDiff / 60; // Convert to minutes
+        const timeDiffMinutes = Math.floor(timeDiff / 60); // Convert to minutes
         
-        console.log('Current time:', currentTime);
-        console.log('Timestamp from URL:', timestamp);
-        console.log('Time difference (minutes):', timeDiffMinutes);
+        console.log('Time check:', {
+          currentTime,
+          timestamp,
+          timeDiff,
+          timeDiffMinutes,
+          isExpired: timeDiffMinutes > TIMEOUT_MINUTES
+        });
         
         if (timeDiffMinutes > TIMEOUT_MINUTES) {
-          document.getElementById('timeoutWarning').style.display = 'block';
-          document.getElementById('addressForm').style.display = 'none';
+          showTimeoutWarning();
           return false;
         }
         return true;
@@ -163,61 +178,61 @@
         // Get the token and timestamp from URL
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
-        const timestamp = parseInt(urlParams.get('timestamp'));
+        const timestamp = parseInt(urlParams.get('timestamp'), 10);
         
-        if (token) {
-          try {
-            // In a real app, you'd decrypt the token on the server
-            // This is just a simulation - we're storing the PSID for use in form submission
-            userPsid = '8538916826211376';
-            console.log('Token processed in background, PSID:', userPsid);
-          } catch (error) {
-            console.error('Error processing token:', error);
-          }
-        }
+        // Log URL parameters for debugging
+        console.log('URL Parameters:', {
+          token: token ? 'exists' : 'missing',
+          timestamp,
+          raw: window.location.search
+        });
         
-        // Check if timestamp is valid and not expired
-        if (timestamp && !isNaN(timestamp)) {
-          if (!checkTimestamp(timestamp)) {
-            return; // Stop form initialization if expired
-          }
-        } else {
-          console.error('Invalid or missing timestamp');
+        if (!token || !timestamp) {
+          console.error('Missing required parameters');
+          showTimeoutWarning();
           return;
         }
         
-        // Handle form submission
-        document.getElementById('addressForm').addEventListener('submit', function(e) {
-          e.preventDefault();
+        // Check timestamp first
+        if (!checkTimestamp(timestamp)) {
+          return; // Stop if expired
+        }
+        
+        try {
+          // Process token and setup form
+          userPsid = '8538916826211376'; // Simulated PSID
+          console.log('Token processed, PSID:', userPsid);
           
-          // Check timestamp again before submission
-          if (!checkTimestamp(timestamp)) {
-            alert('Session expired. Please try again.');
-            return;
-          }
+          // Handle form submission
+          document.getElementById('addressForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Check timestamp again before submission
+            if (!checkTimestamp(timestamp)) {
+              return;
+            }
+            
+            // Get form data
+            const formData = {
+              fullName: document.getElementById('fullName').value,
+              phone: document.getElementById('phone').value,
+              address: document.getElementById('address').value,
+              city: document.getElementById('city').value,
+              state: document.getElementById('state').value,
+              zipCode: document.getElementById('zipCode').value,
+              country: document.getElementById('country').value,
+              psid: userPsid,
+              submittedAt: Math.floor(Date.now() / 1000)
+            };
+            
+            console.log('Form submitted:', formData);
+            alert('Address confirmed successfully!');
+          });
           
-          // Get form data and include the PSID
-          const formData = {
-            fullName: document.getElementById('fullName').value,
-            phone: document.getElementById('phone').value,
-            address: document.getElementById('address').value,
-            city: document.getElementById('city').value,
-            state: document.getElementById('state').value,
-            zipCode: document.getElementById('zipCode').value,
-            country: document.getElementById('country').value,
-            psid: userPsid, // Include PSID from token
-            timestamp: new Date().toISOString()
-          };
-          
-          // Log the form data
-          console.log('Form submitted:', formData);
-          
-          // Show success message
-          alert('Address confirmed successfully!');
-          
-          // In a real app, you would send this data to your server
-          // along with the PSID to associate the address with the user
-        });
+        } catch (error) {
+          console.error('Error initializing form:', error);
+          showTimeoutWarning();
+        }
       });
     </script>
   </body>
