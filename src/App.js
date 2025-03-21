@@ -1,61 +1,167 @@
 import React, { useEffect, useState } from 'react';
-import './App.css';
 import { decryptToken } from './utils/encryption';
+import './App.css';
 
 function App() {
-  const [token, setToken] = useState(null);
-  const [decryptedPSID, setDecryptedPSID] = useState(null);
-  const [error, setError] = useState(null);
+  const [isExpired, setIsExpired] = useState(false);
+  const [userPsid, setUserPsid] = useState('');
+  const TIMEOUT_MINUTES = 20;
+
+  const validateSession = (token, timestamp) => {
+    if (!token || !timestamp || isNaN(timestamp)) {
+      console.error('Invalid session parameters:', { token, timestamp });
+      return false;
+    }
+
+    const currentTime = Math.floor(Date.now() / 1000);
+    // Check if current time has passed the timestamp
+    if (currentTime < timestamp) {
+      console.error('Timestamp is in the future');
+      return false;
+    }
+
+    // Calculate time difference from the URL timestamp
+    const timeDiff = currentTime - timestamp;
+    const timeDiffMinutes = Math.floor(timeDiff / 60);
+
+    console.log('Time check:', {
+      currentTime,
+      timestamp,
+      timeDiff,
+      timeDiffMinutes,
+      isExpired: timeDiffMinutes >= TIMEOUT_MINUTES
+    });
+
+    // Session is valid if current time is less than 20 minutes from the timestamp
+    return timeDiffMinutes < TIMEOUT_MINUTES;
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    
+    // Get current timestamp and check session
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    const urlParams = new URLSearchParams(window.location.search);
+    const timestamp = parseInt(urlParams.get('timestamp'), 10);
+    
+    if (!validateSession(urlParams.get('token'), timestamp)) {
+      setIsExpired(true);
+      return;
+    }
+    
+    const formData = {
+      fullName: e.target.fullName.value,
+      phone: e.target.phone.value,
+      address: e.target.address.value,
+      city: e.target.city.value,
+      state: e.target.state.value,
+      zipCode: e.target.zipCode.value,
+      country: e.target.country.value,
+      psid: userPsid,
+      submittedAt: currentTimestamp
+    };
+    
+    console.log('Form submitted:', formData);
+    alert('Address confirmed successfully!');
+  };
 
   useEffect(() => {
-    // Get token from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const tokenParam = urlParams.get('token');
+    const encryptedToken = urlParams.get('token');
+    const timestamp = parseInt(urlParams.get('timestamp'), 10);
     
-    if (tokenParam) {
-      console.log("Token found in URL:", tokenParam);
-      setToken(tokenParam);
-      
-      // Decrypt the token to get PSID
-      const psid = decryptToken(tokenParam);
-      if (psid) {
-        console.log("Decrypted PSID:", psid);
-        setDecryptedPSID(psid);
-      } else {
-        setError("Failed to decrypt token");
-      }
-    } else {
-      console.log("No token found in URL parameters");
-      setError("No token found in URL parameters");
-    }
-  }, []);
+    console.log('URL Parameters:', {
+      token: encryptedToken ? 'exists' : 'missing',
+      timestamp,
+      raw: window.location.search
+    });
 
+    if (!encryptedToken || !timestamp) {
+      console.error('Missing required parameters');
+      setIsExpired(true);
+      return;
+    }
+
+    // Validate session first
+    if (!validateSession(encryptedToken, timestamp)) {
+      setIsExpired(true);
+      return;
+    }
+
+    try {
+      // Decrypt token to get PSID using the imported decryption function
+      const decryptedPsid = decryptToken(encryptedToken);
+      if (!decryptedPsid) {
+        throw new Error('Failed to decrypt token');
+      }
+
+      setUserPsid(decryptedPsid);
+      console.log('Session initialized with PSID:', decryptedPsid);
+    } catch (error) {
+      console.error('Error initializing session:', error);
+      setIsExpired(true);
+    }
+  }, []); // Run once on component mount
+
+  // If session is expired, only show the warning
+  if (isExpired) {
+    return (
+      <div className="form-container">
+        <div className="timeout-warning">
+          Your session has expired. Please try again.
+        </div>
+      </div>
+    );
+  }
+
+  // Only show form if session is valid
   return (
-    <div className="App">
-      <header className="App-header">
-        <div>
-          {token ? (
-            <div>
-              <p>Encrypted Token: {token}</p>
-              {decryptedPSID ? (
-                <p>Decrypted PSID: {decryptedPSID}</p>
-              ) : (
-                <p style={{ color: 'red' }}>Error: {error || 'Failed to decrypt token'}</p>
-              )}
-            </div>
-          ) : (
-            <p style={{ color: 'red' }}>Error: {error || 'No token available'}</p>
-          )}
+    <div className="form-container">
+      <h1>Address Information</h1>
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="fullName">Full Name</label>
+          <input type="text" id="fullName" name="fullName" required placeholder="Enter your full name" />
         </div>
-        <div className="debug-info">
-          <p>URL parameters: {window.location.search}</p>
-          <p>Origin: {window.location.origin}</p>
-          <p>Referrer: {document.referrer}</p>
-          <p>User Agent: {window.navigator.userAgent}</p>
+        <div className="form-group">
+          <label htmlFor="phone">Phone Number</label>
+          <input type="tel" id="phone" name="phone" required placeholder="Enter your phone number" />
         </div>
-      </header>
+        <div className="form-group">
+          <label htmlFor="address">Street Address</label>
+          <input type="text" id="address" name="address" required placeholder="Enter your street address" />
+        </div>
+        <div className="form-group">
+          <label htmlFor="city">City</label>
+          <input type="text" id="city" name="city" required placeholder="Enter your city" />
+        </div>
+        <div className="form-group">
+          <label htmlFor="state">State/Province</label>
+          <input type="text" id="state" name="state" required placeholder="Enter your state or province" />
+        </div>
+        <div className="form-group">
+          <label htmlFor="zipCode">ZIP/Postal Code</label>
+          <input type="text" id="zipCode" name="zipCode" required placeholder="Enter your ZIP or postal code" />
+        </div>
+        <div className="form-group">
+          <label htmlFor="country">Country</label>
+          <select id="country" name="country" required>
+            <option value="">Select a country</option>
+            <option value="US">United States</option>
+            <option value="CA">Canada</option>
+            <option value="VN">Vietnam</option>
+            <option value="GB">United Kingdom</option>
+            <option value="AU">Australia</option>
+            <option value="DE">Germany</option>
+            <option value="FR">France</option>
+            <option value="JP">Japan</option>
+            <option value="CN">China</option>
+          </select>
+        </div>
+        <button type="submit" className="confirm-btn">Confirm Address</button>
+      </form>
     </div>
   );
 }
 
-export default App;
+export default App; 

@@ -1,73 +1,81 @@
-.App {
-  text-align: center;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #f5f5f5;
 }
 
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
-  padding: 20px;
+.form-container {
+  max-width: 500px;
+  margin: 0 auto;
+  background: white;
+  padding: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #333;
+}
+
+input, select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
   box-sizing: border-box;
+  font-size: 15px;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 5px rgba(76,175,80,0.2);
+}
+
+.confirm-btn {
+  background-color: #4CAF50;
+  color: white;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  font-size: 16px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+  margin-top: 10px;
+}
+
+.confirm-btn:hover {
+  background-color: #45a049;
+}
+
+.confirm-btn:active {
+  background-color: #3d8b40;
 }
 
 h1 {
-  margin-bottom: 2rem;
-  font-size: clamp(1.5rem, 5vw, 2.5rem);
+  color: #333;
+  text-align: center;
+  margin-bottom: 25px;
+  font-size: 24px;
 }
 
-h2 {
-  font-size: clamp(1.2rem, 4vw, 1.8rem);
-  margin-bottom: 1rem;
-}
-
-p {
-  font-size: clamp(1rem, 3vw, 1.4rem);
-  margin: 0.5rem 0;
-  word-break: break-word;
-}
-
-.error {
-  color: #ff6b6b;
-  background-color: rgba(255, 107, 107, 0.1);
-  padding: 1rem;
-  border-radius: 8px;
-  margin: 1rem 0;
-}
-
-.error p {
-  margin: 0;
-}
-
-.debug-info {
-  font-size: 0.8rem;
-  color: #888;
-  margin-top: 1rem;
-  text-align: left;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 1rem;
+.timeout-warning {
+  display: block;
+  background-color: #fff3cd;
+  color: #856404;
+  padding: 10px;
   border-radius: 4px;
-  font-family: monospace;
-}
-
-/* Mobile-specific styles */
-@media screen and (max-width: 768px) {
-  .App-header {
-    padding: 15px;
-  }
-  
-  h1 {
-    margin-bottom: 1.5rem;
-  }
-  
-  h2 {
-    margin-bottom: 0.8rem;
-  }
+  margin-bottom: 15px;
+  text-align: center;
+  font-weight: bold;
 } 

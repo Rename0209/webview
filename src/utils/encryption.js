@@ -1,7 +1,6 @@
 import CryptoJS from 'crypto-js';
 
-// Encryption/Decryption utilities
-const ENCRYPTION_KEY = 'superkeyahafood1'; // This should match the key used for encryption
+const SECRET_KEY = 'superkeyahafood1';
 
 export const decryptToken = (encryptedToken) => {
   try {
@@ -9,7 +8,7 @@ export const decryptToken = (encryptedToken) => {
     const ciphertext = CryptoJS.enc.Hex.parse(encryptedToken);
     
     // Create key from the secret phrase
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
+    const key = CryptoJS.enc.Utf8.parse(SECRET_KEY);
 
     // Decrypt the token using AES
     const decryptedData = CryptoJS.AES.decrypt(
@@ -36,7 +35,7 @@ export const decryptToken = (encryptedToken) => {
 export const encryptToken = (plainText) => {
   try {
     // Create key from the secret phrase
-    const key = CryptoJS.enc.Utf8.parse(ENCRYPTION_KEY);
+    const key = CryptoJS.enc.Utf8.parse(SECRET_KEY);
 
     // Encrypt the plain text using AES
     const encryptedData = CryptoJS.AES.encrypt(plainText, key, {
