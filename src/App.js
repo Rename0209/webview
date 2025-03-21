@@ -6,6 +6,7 @@ function App() {
   const [isExpired, setIsExpired] = useState(false);
   const [userPsid, setUserPsid] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const TIMEOUT_MINUTES = 20;
 
   const validateSession = async (token, timestamp) => {
@@ -133,6 +134,7 @@ function App() {
       if (!encryptedToken || !timestamp) {
         console.error('Missing required parameters');
         setIsExpired(true);
+        setIsLoading(false);
         return;
       }
 
@@ -170,17 +172,27 @@ function App() {
           const isExpired = await checkSessionExpiration(decryptedPsid, timestamp);
           if (isExpired) {
             setIsExpired(true);
-            return;
           }
         }
       } catch (error) {
         console.error('Error initializing session:', error);
         setIsExpired(true);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     initializeApp();
   }, []); // Run once on component mount
+
+  // Show black screen while loading
+  if (isLoading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-content"></div>
+      </div>
+    );
+  }
 
   // If session is expired, only show the warning
   if (isExpired) {
