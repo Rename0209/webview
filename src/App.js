@@ -61,7 +61,6 @@ function App() {
     // Get timestamp from URL and check if expired
     const urlParams = new URLSearchParams(window.location.search);
     const timestamp = parseInt(urlParams.get('timestamp'), 10);
-    const currentTime = Math.floor(Date.now() / 1000);
     
     // Check local timestamp validation
     const isValid = validateSession(urlParams.get('token'), timestamp);
@@ -76,7 +75,7 @@ function App() {
           },
           body: JSON.stringify({
             psid: userPsid,
-            timestamp: currentTime
+            timestamp: timestamp
           })
         });
       } catch (error) {
@@ -100,7 +99,7 @@ function App() {
       zipCode: e.target.zipCode.value,
       country: e.target.country.value,
       psid: userPsid,
-      submittedAt: currentTime
+      sessionTimestamp: timestamp
     };
     
     console.log('Form submitted:', formData);
@@ -161,7 +160,7 @@ function App() {
               },
               body: JSON.stringify({
                 psid: decryptedPsid,
-                timestamp: Math.floor(Date.now() / 1000)
+                timestamp: timestamp
               })
             });
           } catch (error) {
