@@ -72,6 +72,15 @@
         #root {
             display: none;
         }
+        .timeout-warning {
+            display: none;
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
     </style>
   </head>
   <body>
@@ -80,6 +89,9 @@
     
     <!-- Our form container (shown) -->
     <div id="address-form-container" class="form-container">
+      <div id="timeoutWarning" class="timeout-warning">
+        Your session will expire in <span id="timeLeft">20:00</span>. Please complete the form soon.
+      </div>
       <h1>Address Information</h1>
       <form id="addressForm">
         <div class="form-group">
@@ -128,6 +140,34 @@
     <script>
       // Process the token in the background
       let userPsid = '';
+      let timeoutInterval;
+      let timeLeft = 20 * 60; // 20 minutes in seconds
+      const warningThreshold = 5 * 60; // 5 minutes warning threshold
+      
+      function updateTimer() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        document.getElementById('timeLeft').textContent = 
+          `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Show warning when less than 5 minutes remaining
+        if (timeLeft <= warningThreshold) {
+          document.getElementById('timeoutWarning').style.display = 'block';
+        }
+        
+        if (timeLeft <= 0) {
+          clearInterval(timeoutInterval);
+          alert('Session expired. Please try again.');
+          // Optionally redirect or close the webview
+          window.close();
+        }
+      }
+      
+      function resetTimer() {
+        timeLeft = 20 * 60;
+        document.getElementById('timeoutWarning').style.display = 'none';
+        updateTimer();
+      }
       
       document.addEventListener('DOMContentLoaded', function() {
         // Get the token from URL without displaying it
@@ -145,6 +185,21 @@
           }
         }
         
+        // Start the timer
+        updateTimer();
+        timeoutInterval = setInterval(() => {
+          timeLeft--;
+          updateTimer();
+        }, 1000);
+        
+        // Reset timer on user interaction
+        const formElements = document.querySelectorAll('input, select, button');
+        formElements.forEach(element => {
+          element.addEventListener('input', resetTimer);
+          element.addEventListener('change', resetTimer);
+          element.addEventListener('click', resetTimer);
+        });
+        
         // Handle form submission
         document.getElementById('addressForm').addEventListener('submit', function(e) {
           e.preventDefault();
@@ -161,12 +216,15 @@
             psid: userPsid, // Include PSID from token
             timestamp: new Date().toISOString()
           };
-
+          
           // Log the form data
           console.log('Form submitted:', formData);
           
           // Show success message
           alert('Address confirmed successfully!');
+          
+          // Clear the timer
+          clearInterval(timeoutInterval);
           
           // In a real app, you would send this data to your server
           // along with the PSID to associate the address with the user
