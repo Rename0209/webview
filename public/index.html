@@ -3,134 +3,175 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messenger Webview</title>
+    <title>Address Information</title>
     <style>
         body {
             margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100vh;
-            overflow: auto; /* Allow scrolling */
-        }
-        .container {
             padding: 20px;
-            max-width: 100%;
-            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
         }
-        .status-message {
-            padding: 10px;
-            margin: 10px;
+        .form-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
             border-radius: 4px;
-            word-break: break-all;
+            box-sizing: border-box;
+            font-size: 15px;
         }
-        .error {
-            background-color: #ffebee;
-            color: #c62828;
-            border: 1px solid #ef9a9a;
+        input:focus, select:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76,175,80,0.2);
         }
-        .info {
-            background-color: #e3f2fd;
-            color: #1565c0;
-            border: 1px solid #90caf9;
+        .confirm-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        .confirm-btn:hover {
+            background-color: #45a049;
+        }
+        .confirm-btn:active {
+            background-color: #3d8b40;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 24px;
+        }
+        #address-form-container {
+            display: block;
+        }
+        #root {
+            display: none;
         }
     </style>
   </head>
   <body>
-    <div id="root">
-        <div id="status-container"></div>
+    <!-- React root element (hidden) -->
+    <div id="root"></div>
+    
+    <!-- Our form container (shown) -->
+    <div id="address-form-container" class="form-container">
+      <h1>Address Information</h1>
+      <form id="addressForm">
+        <div class="form-group">
+          <label for="fullName">Full Name</label>
+          <input type="text" id="fullName" name="fullName" required placeholder="Enter your full name">
+        </div>
+        <div class="form-group">
+          <label for="phone">Phone Number</label>
+          <input type="tel" id="phone" name="phone" required placeholder="Enter your phone number">
+        </div>
+        <div class="form-group">
+          <label for="address">Street Address</label>
+          <input type="text" id="address" name="address" required placeholder="Enter your street address">
+        </div>
+        <div class="form-group">
+          <label for="city">City</label>
+          <input type="text" id="city" name="city" required placeholder="Enter your city">
+        </div>
+        <div class="form-group">
+          <label for="state">State/Province</label>
+          <input type="text" id="state" name="state" required placeholder="Enter your state or province">
+        </div>
+        <div class="form-group">
+          <label for="zipCode">ZIP/Postal Code</label>
+          <input type="text" id="zipCode" name="zipCode" required placeholder="Enter your ZIP or postal code">
+        </div>
+        <div class="form-group">
+          <label for="country">Country</label>
+          <select id="country" name="country" required>
+            <option value="">Select a country</option>
+            <option value="US">United States</option>
+            <option value="CA">Canada</option>
+            <option value="VN">Vietnam</option>
+            <option value="GB">United Kingdom</option>
+            <option value="AU">Australia</option>
+            <option value="DE">Germany</option>
+            <option value="FR">France</option>
+            <option value="JP">Japan</option>
+            <option value="CN">China</option>
+          </select>
+        </div>
+        <button type="submit" class="confirm-btn">Confirm Address</button>
+      </form>
     </div>
-
-    <!-- Messenger Extensions SDK -->
+    
     <script>
-        let statusContainer = null;
-
-        function showStatus(message, type = 'info') {
-            if (!statusContainer) {
-                statusContainer = document.getElementById('status-container');
-            }
-            if (!statusContainer) {
-                console.error('Status container not found');
-                return;
-            }
-            const statusDiv = document.createElement('div');
-            statusDiv.className = `status-message ${type}`;
-            statusDiv.textContent = message;
-            statusContainer.appendChild(statusDiv);
-            console.log(type + ':', message); // Also log to console
-        }
-
-        function checkMessengerEnvironment() {
-            // Show all available window properties for debugging
-            showStatus('Window properties:', 'info');
-            showStatus(`window.name: ${window.name}`, 'info');
-            showStatus(`window.top === window: ${window.top === window}`, 'info');
-            showStatus(`window.parent === window: ${window.parent === window}`, 'info');
-            showStatus(`document.referrer: ${document.referrer}`, 'info');
-            
-            // Check environment
-            const environment = 
-                window.name === 'messenger_ref' ? 'Messenger Web' :
-                window.name === 'facebook_ref' ? 'Facebook Chat Tab' :
-                'Unknown Environment';
-            
-            showStatus(`Running in: ${environment}`, 'info');
-        }
-
-        // Wait for DOM to be ready
-        document.addEventListener('DOMContentLoaded', function() {
-            try {
-                checkMessengerEnvironment();
-            } catch (error) {
-                showStatus('Error checking environment: ' + error.message, 'error');
-            }
-        });
-
-        // Messenger SDK initialization
-        window.extAsyncInit = function() {
-            try {
-                showStatus('Messenger Extensions SDK loaded');
-                
-                if (window.MessengerExtensions) {
-                    showStatus('MessengerExtensions is available');
-                    
-                    // Check supported features
-                    window.MessengerExtensions.getSupportedFeatures(function success(result) {
-                        showStatus('Supported features: ' + JSON.stringify(result), 'info');
-                    }, function error(err) {
-                        showStatus('Error getting supported features: ' + JSON.stringify(err), 'error');
-                    });
-                } else {
-                    showStatus('MessengerExtensions not available', 'error');
-                }
-            } catch (error) {
-                showStatus('Error in extAsyncInit: ' + error.message, 'error');
-            }
-        };
+      // Process the token in the background
+      let userPsid = '';
+      
+      document.addEventListener('DOMContentLoaded', function() {
+        // Get the token from URL without displaying it
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
         
-        // Load the Messenger Extensions SDK
-        (function(d, s, id){
-            try {
-                var js, fjs = d.getElementsByTagName(s)[0];
-                if (d.getElementById(id)) {return;}
-                js = d.createElement(s); js.id = id;
-                js.src = "https://connect.facebook.net/en_US/messenger.Extensions.js";
-                if (fjs && fjs.parentNode) {
-                    fjs.parentNode.insertBefore(js, fjs);
-                    showStatus('SDK script tag added');
-                } else {
-                    showStatus('Could not find parent node for SDK script', 'error');
-                }
-            } catch (error) {
-                showStatus('Error loading SDK: ' + error.message, 'error');
-            }
-        }(document, 'script', 'Messenger'));
+        if (token) {
+          try {
+            // In a real app, you'd decrypt the token on the server
+            // This is just a simulation - we're storing the PSID for use in form submission
+            userPsid = '8538916826211376';
+            console.log('Token processed in background, PSID:', userPsid);
+          } catch (error) {
+            console.error('Error processing token:', error);
+          }
+        }
+        
+        // Handle form submission
+        document.getElementById('addressForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          // Get form data and include the PSID
+          const formData = {
+            fullName: document.getElementById('fullName').value,
+            phone: document.getElementById('phone').value,
+            address: document.getElementById('address').value,
+            city: document.getElementById('city').value,
+            state: document.getElementById('state').value,
+            zipCode: document.getElementById('zipCode').value,
+            country: document.getElementById('country').value,
+            psid: userPsid, // Include PSID from token
+            timestamp: new Date().toISOString()
+          };
 
-        // Add timeout check
-        setTimeout(function() {
-            if (!window.MessengerExtensions) {
-                showStatus('Messenger Extensions SDK failed to load after timeout', 'error');
-            }
-        }, 5000);
+          // Log the form data
+          console.log('Form submitted:', formData);
+          
+          // Show success message
+          alert('Address confirmed successfully!');
+          
+          // In a real app, you would send this data to your server
+          // along with the PSID to associate the address with the user
+        });
+      });
     </script>
   </body>
 </html> 
