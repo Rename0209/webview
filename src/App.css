@@ -96,4 +96,91 @@ h1 {
   margin-bottom: 15px;
   text-align: center;
   font-weight: bold;
+}
+
+.error-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  width: 90%;
+  max-width: 500px;
+}
+
+.error-message {
+  background-color: #fff3f3;
+  border: 1px solid #ffcdd2;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.error-icon {
+  margin-right: 12px;
+  font-size: 20px;
+}
+
+.error-message p {
+  margin: 0;
+  color: #d32f2f;
+  font-size: 14px;
+  flex-grow: 1;
+}
+
+.retry-btn {
+  background-color: #d32f2f;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 12px;
+}
+
+.retry-btn:hover {
+  background-color: #b71c1c;
+}
+
+.form-error {
+  color: #d32f2f;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+.input-error {
+  border-color: #d32f2f !important;
+}
+
+/* Loading state styles */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid #f3f3f3;
+  border-top: 3px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 } 

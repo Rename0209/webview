@@ -16,34 +16,29 @@ function App() {
     zipCode: '',
     country: ''
   });
+
   const TIMEOUT_MINUTES = 20;
 
-  const validateSession = async (token, timestamp) => {
-    if (!token || !timestamp || isNaN(timestamp)) {
-      console.error('Invalid session parameters:', { token, timestamp });
+  const validateSession = (timestamp) => {
+    if (!timestamp || isNaN(timestamp)) {
+      console.error('Invalid timestamp:', timestamp);
       return false;
     }
 
     const currentTime = Math.floor(Date.now() / 1000);
-    // Check if current time has passed the timestamp
     if (currentTime < timestamp) {
       console.error('Timestamp is in the future');
       return false;
     }
 
-    // Calculate time difference from the URL timestamp
-    const timeDiff = currentTime - timestamp;
-    const timeDiffMinutes = Math.floor(timeDiff / 60);
-
-    console.log('Time check:', {
+    const timeDiffMinutes = Math.floor((currentTime - timestamp) / 60);
+    console.log('Time validation:', {
       currentTime,
       timestamp,
-      timeDiff,
       timeDiffMinutes,
-      isExpired: timeDiffMinutes >= TIMEOUT_MINUTES
+      isValid: timeDiffMinutes < TIMEOUT_MINUTES
     });
 
-    // Session is valid if current time is less than 20 minutes from the timestamp
     return timeDiffMinutes < TIMEOUT_MINUTES;
   };
 
@@ -54,14 +49,13 @@ function App() {
       return data.isExpired;
     } catch (error) {
       console.error('Error checking session expiration:', error);
-      return true; // Assume expired on error
+      return true;
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Prevent multiple submissions
     if (isSubmitted) {
       console.log('Form already submitted');
       return;
@@ -71,8 +65,7 @@ function App() {
     const timestamp = parseInt(urlParams.get('timestamp'), 10);
     
     try {
-      // Check session with Redis
-      const redisResponse = await fetch('https://redis-session-manage.onrender.com/session', {
+      const response = await fetch('https://redis-session-manage.onrender.com/session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,57 +75,40 @@ function App() {
           timestamp: timestamp
         })
       });
-      const redisData = await redisResponse.json();
-      console.log('Redis validation response:', redisData);
+      const data = await response.json();
 
-      if (redisData.isExpired) {
+      if (data.isExpired) {
         console.log('Session expired during form submission');
         setIsExpired(true);
         return;
       }
-    
-      const formData = {
-        fullName: e.target.fullName.value,
-        phone: e.target.phone.value,
-        address: e.target.address.value,
-        city: e.target.city.value,
-        state: e.target.state.value,
-        zipCode: e.target.zipCode.value,
-        country: e.target.country.value,
+
+      const submitData = {
+        ...formData,
         psid: userPsid,
         sessionTimestamp: timestamp
       };
-      
-      // Send form data to MongoDB server
-      const response = await fetch('https://mongodb-manage.onrender.com/api/address', {
+
+      const mongoResponse = await fetch('https://mongodb-manage.onrender.com/api/address', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submitData)
       });
 
-      if (!response.ok) {
+      if (!mongoResponse.ok) {
         throw new Error('Failed to submit address data');
       }
 
-      // Get and log the response data from MongoDB server
-      const responseData = await response.json();
-      console.log('MongoDB Server Response:', responseData);
-
-      console.log('Form submitted successfully:', formData);
       setIsSubmitted(true);
       alert('Address confirmed successfully!');
       
-      // Close the webview
       if (window.MessengerExtensions) {
-        window.MessengerExtensions.requestCloseBrowser(function success() {
-          console.log('Webview closed successfully');
-        }, function error(err) {
-          console.error('Error closing webview:', err);
-        });
-      } else {
-        console.log('MessengerExtensions not available, webview will not close');
+        window.MessengerExtensions.requestCloseBrowser(
+          () => console.log('Webview closed successfully'),
+          (err) => console.error('Error closing webview:', err)
+        );
       }
     } catch (error) {
       console.error('Error submitting address data:', error);
@@ -141,15 +117,14 @@ function App() {
   };
 
   useEffect(() => {
-    const initializeApp = async () => {
+    const initializeSession = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const encryptedToken = urlParams.get('token');
       const timestamp = parseInt(urlParams.get('timestamp'), 10);
       
       console.log('URL Parameters:', {
         token: encryptedToken ? 'exists' : 'missing',
-        timestamp,
-        raw: window.location.search
+        timestamp
       });
 
       if (!encryptedToken || !timestamp) {
@@ -164,47 +139,71 @@ function App() {
         if (!decryptedPsid) {
           throw new Error('Failed to decrypt token');
         }
-
         setUserPsid(decryptedPsid);
-        console.log('Session initialized with PSID:', decryptedPsid);
 
-        // First check URL timestamp validity
-        const isValid = await validateSession(encryptedToken, timestamp);
+        const isValid = validateSession(timestamp);
         console.log('URL timestamp validation:', isValid);
 
         if (isValid) {
-          // If URL timestamp is valid, POST to Redis
-          try {
-            const redisResponse = await fetch('https://redis-session-manage.onrender.com/session', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                psid: decryptedPsid,
-                timestamp: timestamp
-              })
-            });
-            const redisData = await redisResponse.json();
-            console.log('Redis POST response:', redisData);
+          const response = await fetch('https://redis-session-manage.onrender.com/session', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              psid: decryptedPsid,
+              timestamp: timestamp
+            })
+          });
+          const data = await response.json();
 
-            // Session is valid, fetch MongoDB data
-            await fetchMongoData(decryptedPsid, timestamp);
-          } catch (error) {
-            console.error('Error posting to Redis:', error);
+          if (!data.isExpired) {
+            try {
+              const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${decryptedPsid}/${timestamp}`);
+              if (mongoResponse.status === 404) {
+                console.log('No existing data in MongoDB');
+              } else if (mongoResponse.ok) {
+                const data = await mongoResponse.json();
+                setFormData({
+                  fullName: data.fullName || '',
+                  phone: data.phone || '',
+                  address: data.address || '',
+                  city: data.city || '',
+                  state: data.state || '',
+                  zipCode: data.zipCode || '',
+                  country: data.country || ''
+                });
+              }
+            } catch (error) {
+              console.error('Error fetching MongoDB data:', error);
+            }
+          } else {
             setIsExpired(true);
           }
         } else {
-          // If URL timestamp is not valid, GET from Redis to check expiration
-          console.log('URL timestamp invalid, checking Redis expiration');
           const isExpired = await checkSessionExpiration(decryptedPsid, timestamp);
-          console.log('Redis GET response - isExpired:', isExpired);
-          
           if (isExpired) {
             setIsExpired(true);
           } else {
-            // Session is valid through Redis, fetch MongoDB data
-            await fetchMongoData(decryptedPsid, timestamp);
+            try {
+              const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${decryptedPsid}/${timestamp}`);
+              if (mongoResponse.status === 404) {
+                console.log('No existing data in MongoDB');
+              } else if (mongoResponse.ok) {
+                const data = await mongoResponse.json();
+                setFormData({
+                  fullName: data.fullName || '',
+                  phone: data.phone || '',
+                  address: data.address || '',
+                  city: data.city || '',
+                  state: data.state || '',
+                  zipCode: data.zipCode || '',
+                  country: data.country || ''
+                });
+              }
+            } catch (error) {
+              console.error('Error fetching MongoDB data:', error);
+            }
           }
         }
       } catch (error) {
@@ -215,41 +214,9 @@ function App() {
       }
     };
 
-    const fetchMongoData = async (psid, timestamp) => {
-      try {
-        console.log('Fetching MongoDB data for:', { psid, timestamp });
-        const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${psid}/${timestamp}`);
-        console.log('MongoDB response status:', mongoResponse.status);
-        
-        if (mongoResponse.status === 404) {
-          console.log('No existing data found in MongoDB');
-          return;
-        }
-        
-        if (mongoResponse.ok) {
-          const data = await mongoResponse.json();
-          console.log('MongoDB Data received:', data);
-          
-          // Auto-fill form with received data
-          setFormData({
-            fullName: data.fullName || '',
-            phone: data.phone || '',
-            address: data.address || '',
-            city: data.city || '',
-            state: data.state || '',
-            zipCode: data.zipCode || '',
-            country: data.country || ''
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching MongoDB data:', error);
-      }
-    };
-
-    initializeApp();
+    initializeSession();
   }, []);
 
-  // Show black screen while loading
   if (isLoading) {
     return (
       <div className="loading-screen">
@@ -258,7 +225,6 @@ function App() {
     );
   }
 
-  // If session is expired, only show the warning
   if (isExpired) {
     return (
       <div className="form-container">
@@ -269,7 +235,6 @@ function App() {
     );
   }
 
-  // If form was already submitted, show success message
   if (isSubmitted) {
     return (
       <div className="form-container">
@@ -280,7 +245,6 @@ function App() {
     );
   }
 
-  // Only show form if session is valid and not submitted
   return (
     <div className="form-container">
       <h1>Address Information</h1>
