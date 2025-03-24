@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { decryptToken } from './utils/encryption';
+import { validateSession, checkSessionExpiration, validateRedisTimestamp } from './utils/sessionUtils';
+import AddressForm from './components/AddressForm';
+import StatusMessage from './components/StatusMessage';
 import './App.css';
 
 function App() {
@@ -16,46 +19,6 @@ function App() {
     zipCode: ''
   });
 
-  const TIMEOUT_MINUTES = 20;
-
-  const validateSession = (timestamp) => {
-    if (!timestamp || isNaN(timestamp)) {
-      console.error('Invalid timestamp:', timestamp);
-      return false;
-    }
-
-    const currentTime = Math.floor(Date.now() / 1000);
-    if (currentTime < timestamp) {
-      console.error('Timestamp is in the future');
-      return false;
-    }
-
-    const timeDiffMinutes = Math.floor((currentTime - timestamp) / 60);
-    console.log('Time validation:', {
-      currentTime,
-      timestamp,
-      timeDiffMinutes,
-      isValid: timeDiffMinutes < TIMEOUT_MINUTES
-    });
-
-    return timeDiffMinutes < TIMEOUT_MINUTES;
-  };
-
-  const checkSessionExpiration = async (psid, timestamp) => {
-    try {
-      const response = await fetch(`https://redis-session-manage.onrender.com/session/${psid}/${timestamp}`);
-      const data = await response.json();
-      if (data && data.timestamp) {
-        localStorage.setItem('redisTimestamp', data.timestamp);
-        console.log('Redis timestamp in localStorage:', localStorage.getItem('redisTimestamp'));
-      }
-      return data.isExpired;
-    } catch (error) {
-      console.error('Error checking session expiration:', error);
-      return true;
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -64,22 +27,9 @@ function App() {
       return;
     }
 
-    const storedTimestamp = localStorage.getItem('redisTimestamp');
-    if (storedTimestamp) {
-      const currentTime = Math.floor(Date.now() / 1000);
-      const redisTime = parseInt(storedTimestamp);
-      
-      console.log('Time validation on submit:', {
-        currentTime,
-        redisTimestamp: redisTime,
-        isExpired: currentTime >= redisTime
-      });
-
-      if (currentTime >= redisTime) {
-        console.log('Session expired during submission');
-        setIsExpired(true);
-        return;
-      }
+    if (!validateRedisTimestamp()) {
+      setIsExpired(true);
+      return;
     }
 
     const urlParams = new URLSearchParams(window.location.search);
@@ -116,6 +66,27 @@ function App() {
     } catch (error) {
       console.error('Error submitting address data:', error);
       alert('Failed to submit address. Please try again.');
+    }
+  };
+
+  const fetchMongoData = async (psid, timestamp) => {
+    try {
+      const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${psid}/${timestamp}`);
+      if (mongoResponse.status === 404) {
+        console.log('No existing data in MongoDB');
+      } else if (mongoResponse.ok) {
+        const data = await mongoResponse.json();
+        setFormData({
+          fullName: data.fullName || '',
+          phone: data.phone || '',
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || '',
+          zipCode: data.zipCode || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching MongoDB data:', error);
     }
   };
 
@@ -174,24 +145,7 @@ function App() {
           }
 
           if (!data.isExpired) {
-            try {
-              const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${decryptedPsid}/${timestamp}`);
-              if (mongoResponse.status === 404) {
-                console.log('No existing data in MongoDB');
-              } else if (mongoResponse.ok) {
-                const data = await mongoResponse.json();
-                setFormData({
-                  fullName: data.fullName || '',
-                  phone: data.phone || '',
-                  address: data.address || '',
-                  city: data.city || '',
-                  state: data.state || '',
-                  zipCode: data.zipCode || ''
-                });
-              }
-            } catch (error) {
-              console.error('Error fetching MongoDB data:', error);
-            }
+            await fetchMongoData(decryptedPsid, timestamp);
           } else {
             setIsExpired(true);
           }
@@ -201,24 +155,7 @@ function App() {
           if (isExpired) {
             setIsExpired(true);
           } else {
-            try {
-              const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${decryptedPsid}/${timestamp}`);
-              if (mongoResponse.status === 404) {
-                console.log('No existing data in MongoDB');
-              } else if (mongoResponse.ok) {
-                const data = await mongoResponse.json();
-                setFormData({
-                  fullName: data.fullName || '',
-                  phone: data.phone || '',
-                  address: data.address || '',
-                  city: data.city || '',
-                  state: data.state || '',
-                  zipCode: data.zipCode || ''
-                });
-              }
-            } catch (error) {
-              console.error('Error fetching MongoDB data:', error);
-            }
+            await fetchMongoData(decryptedPsid, timestamp);
           }
         }
       } catch (error) {
@@ -233,111 +170,25 @@ function App() {
   }, []);
 
   if (isLoading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-content"></div>
-      </div>
-    );
+    return <StatusMessage type="loading" />;
   }
 
   if (isExpired) {
-    return (
-      <div className="form-container">
-        <div className="timeout-warning">
-          Your session has expired. Please try again.
-        </div>
-      </div>
-    );
+    return <StatusMessage type="expired" />;
   }
 
   if (isSubmitted) {
-    return (
-      <div className="form-container">
-        <div className="success-message">
-          Address already confirmed. Thank you!
-        </div>
-      </div>
-    );
+    return <StatusMessage type="success" />;
   }
 
   return (
     <div className="form-container">
       <h1>Address Information</h1>
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="fullName">Full Name</label>
-          <input 
-            type="text" 
-            id="fullName" 
-            name="fullName" 
-            required 
-            placeholder="Enter your full name"
-            value={formData.fullName}
-            onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="phone">Phone Number</label>
-          <input 
-            type="tel" 
-            id="phone" 
-            name="phone" 
-            required 
-            placeholder="Enter your phone number"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="address">Street Address</label>
-          <input 
-            type="text" 
-            id="address" 
-            name="address" 
-            required 
-            placeholder="Enter your street address"
-            value={formData.address}
-            onChange={(e) => setFormData({...formData, address: e.target.value})}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="city">City</label>
-          <input 
-            type="text" 
-            id="city" 
-            name="city" 
-            required 
-            placeholder="Enter your city"
-            value={formData.city}
-            onChange={(e) => setFormData({...formData, city: e.target.value})}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="state">State/Province</label>
-          <input 
-            type="text" 
-            id="state" 
-            name="state" 
-            required 
-            placeholder="Enter your state or province"
-            value={formData.state}
-            onChange={(e) => setFormData({...formData, state: e.target.value})}
-          />
-        </div>
-        <div className="form-group">
-          <label htmlFor="zipCode">ZIP/Postal Code</label>
-          <input 
-            type="text" 
-            id="zipCode" 
-            name="zipCode" 
-            required 
-            placeholder="Enter your ZIP or postal code"
-            value={formData.zipCode}
-            onChange={(e) => setFormData({...formData, zipCode: e.target.value})}
-          />
-        </div>
-        <button type="submit" className="confirm-btn">Confirm Address</button>
-      </form>
+      <AddressForm 
+        formData={formData}
+        setFormData={setFormData}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }
