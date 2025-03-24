@@ -13,8 +13,7 @@ function App() {
     address: '',
     city: '',
     state: '',
-    zipCode: '',
-    country: ''
+    zipCode: ''
   });
 
   const TIMEOUT_MINUTES = 20;
@@ -46,6 +45,10 @@ function App() {
     try {
       const response = await fetch(`https://redis-session-manage.onrender.com/session/${psid}/${timestamp}`);
       const data = await response.json();
+      if (data && data.timestamp) {
+        localStorage.setItem('redisTimestamp', data.timestamp);
+        console.log('Redis timestamp in localStorage:', localStorage.getItem('redisTimestamp'));
+      }
       return data.isExpired;
     } catch (error) {
       console.error('Error checking session expiration:', error);
@@ -61,28 +64,28 @@ function App() {
       return;
     }
 
+    const storedTimestamp = localStorage.getItem('redisTimestamp');
+    if (storedTimestamp) {
+      const currentTime = Math.floor(Date.now() / 1000);
+      const redisTime = parseInt(storedTimestamp);
+      
+      console.log('Time validation on submit:', {
+        currentTime,
+        redisTimestamp: redisTime,
+        isExpired: currentTime >= redisTime
+      });
+
+      if (currentTime >= redisTime) {
+        console.log('Session expired during submission');
+        setIsExpired(true);
+        return;
+      }
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const timestamp = parseInt(urlParams.get('timestamp'), 10);
     
     try {
-      const response = await fetch('https://redis-session-manage.onrender.com/session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          psid: userPsid,
-          timestamp: timestamp
-        })
-      });
-      const data = await response.json();
-
-      if (data.isExpired) {
-        console.log('Session expired during form submission');
-        setIsExpired(true);
-        return;
-      }
-
       const submitData = {
         ...formData,
         psid: userPsid,
@@ -118,13 +121,17 @@ function App() {
 
   useEffect(() => {
     const initializeSession = async () => {
+      localStorage.removeItem('redisTimestamp');
+      console.log('Cleared Redis timestamp from localStorage');
+      
       const urlParams = new URLSearchParams(window.location.search);
       const encryptedToken = urlParams.get('token');
       const timestamp = parseInt(urlParams.get('timestamp'), 10);
       
       console.log('URL Parameters:', {
         token: encryptedToken ? 'exists' : 'missing',
-        timestamp
+        timestamp,
+        currentTime: Math.floor(Date.now() / 1000)
       });
 
       if (!encryptedToken || !timestamp) {
@@ -142,7 +149,11 @@ function App() {
         setUserPsid(decryptedPsid);
 
         const isValid = validateSession(timestamp);
-        console.log('URL timestamp validation:', isValid);
+        console.log('URL timestamp validation:', {
+          isValid,
+          timestamp,
+          currentTime: Math.floor(Date.now() / 1000)
+        });
 
         if (isValid) {
           const response = await fetch('https://redis-session-manage.onrender.com/session', {
@@ -157,6 +168,11 @@ function App() {
           });
           const data = await response.json();
 
+          if (data && data.timestamp) {
+            localStorage.setItem('redisTimestamp', data.timestamp);
+            console.log('Redis timestamp in localStorage:', localStorage.getItem('redisTimestamp'));
+          }
+
           if (!data.isExpired) {
             try {
               const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${decryptedPsid}/${timestamp}`);
@@ -170,8 +186,7 @@ function App() {
                   address: data.address || '',
                   city: data.city || '',
                   state: data.state || '',
-                  zipCode: data.zipCode || '',
-                  country: data.country || ''
+                  zipCode: data.zipCode || ''
                 });
               }
             } catch (error) {
@@ -182,6 +197,7 @@ function App() {
           }
         } else {
           const isExpired = await checkSessionExpiration(decryptedPsid, timestamp);
+          
           if (isExpired) {
             setIsExpired(true);
           } else {
@@ -197,8 +213,7 @@ function App() {
                   address: data.address || '',
                   city: data.city || '',
                   state: data.state || '',
-                  zipCode: data.zipCode || '',
-                  country: data.country || ''
+                  zipCode: data.zipCode || ''
                 });
               }
             } catch (error) {
@@ -320,27 +335,6 @@ function App() {
             value={formData.zipCode}
             onChange={(e) => setFormData({...formData, zipCode: e.target.value})}
           />
-        </div>
-        <div className="form-group">
-          <label htmlFor="country">Country</label>
-          <select 
-            id="country" 
-            name="country" 
-            required
-            value={formData.country}
-            onChange={(e) => setFormData({...formData, country: e.target.value})}
-          >
-            <option value="">Select a country</option>
-            <option value="US">United States</option>
-            <option value="CA">Canada</option>
-            <option value="VN">Vietnam</option>
-            <option value="GB">United Kingdom</option>
-            <option value="AU">Australia</option>
-            <option value="DE">Germany</option>
-            <option value="FR">France</option>
-            <option value="JP">Japan</option>
-            <option value="CN">China</option>
-          </select>
         </div>
         <button type="submit" className="confirm-btn">Confirm Address</button>
       </form>
