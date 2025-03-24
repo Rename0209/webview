@@ -7,6 +7,15 @@ function App() {
   const [userPsid, setUserPsid] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [formData, setFormData] = useState({
+    fullName: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: ''
+  });
   const TIMEOUT_MINUTES = 20;
 
   const validateSession = async (token, timestamp) => {
@@ -58,52 +67,43 @@ function App() {
       return;
     }
 
-    // Get timestamp from URL and check if expired
     const urlParams = new URLSearchParams(window.location.search);
     const timestamp = parseInt(urlParams.get('timestamp'), 10);
     
-    // Check local timestamp validation
-    const isValid = validateSession(urlParams.get('token'), timestamp);
-    
-    if (isValid) {
-      // If valid, send data to backend
-      try {
-        await fetch('https://redis-session-manage.onrender.com/session', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            psid: userPsid,
-            timestamp: timestamp
-          })
-        });
-      } catch (error) {
-        console.error('Error submitting form:', error);
-      }
-    } else {
-      // If invalid, check with backend
-      const isExpired = await checkSessionExpiration(userPsid, timestamp);
-      if (isExpired) {
+    try {
+      // Check session with Redis
+      const redisResponse = await fetch('https://redis-session-manage.onrender.com/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          psid: userPsid,
+          timestamp: timestamp
+        })
+      });
+      const redisData = await redisResponse.json();
+      console.log('Redis validation response:', redisData);
+
+      if (redisData.isExpired) {
+        console.log('Session expired during form submission');
         setIsExpired(true);
         return;
       }
-    }
     
-    const formData = {
-      fullName: e.target.fullName.value,
-      phone: e.target.phone.value,
-      address: e.target.address.value,
-      city: e.target.city.value,
-      state: e.target.state.value,
-      zipCode: e.target.zipCode.value,
-      country: e.target.country.value,
-      psid: userPsid,
-      sessionTimestamp: timestamp
-    };
-    
-    // Send form data to MongoDB server
-    try {
+      const formData = {
+        fullName: e.target.fullName.value,
+        phone: e.target.phone.value,
+        address: e.target.address.value,
+        city: e.target.city.value,
+        state: e.target.state.value,
+        zipCode: e.target.zipCode.value,
+        country: e.target.country.value,
+        psid: userPsid,
+        sessionTimestamp: timestamp
+      };
+      
+      // Send form data to MongoDB server
       const response = await fetch('https://mongodb-manage.onrender.com/api/address', {
         method: 'POST',
         headers: {
@@ -160,7 +160,6 @@ function App() {
       }
 
       try {
-        // Decrypt token to get PSID using the imported decryption function
         const decryptedPsid = decryptToken(encryptedToken);
         if (!decryptedPsid) {
           throw new Error('Failed to decrypt token');
@@ -169,13 +168,14 @@ function App() {
         setUserPsid(decryptedPsid);
         console.log('Session initialized with PSID:', decryptedPsid);
 
-        // Check local timestamp validation
+        // First check URL timestamp validity
         const isValid = await validateSession(encryptedToken, timestamp);
-        
+        console.log('URL timestamp validation:', isValid);
+
         if (isValid) {
-          // If valid, send data to backend
+          // If URL timestamp is valid, POST to Redis
           try {
-            await fetch('https://redis-session-manage.onrender.com/session', {
+            const redisResponse = await fetch('https://redis-session-manage.onrender.com/session', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -185,14 +185,26 @@ function App() {
                 timestamp: timestamp
               })
             });
+            const redisData = await redisResponse.json();
+            console.log('Redis POST response:', redisData);
+
+            // Session is valid, fetch MongoDB data
+            await fetchMongoData(decryptedPsid, timestamp);
           } catch (error) {
-            console.error('Error submitting form:', error);
+            console.error('Error posting to Redis:', error);
+            setIsExpired(true);
           }
         } else {
-          // If invalid, check with backend
+          // If URL timestamp is not valid, GET from Redis to check expiration
+          console.log('URL timestamp invalid, checking Redis expiration');
           const isExpired = await checkSessionExpiration(decryptedPsid, timestamp);
+          console.log('Redis GET response - isExpired:', isExpired);
+          
           if (isExpired) {
             setIsExpired(true);
+          } else {
+            // Session is valid through Redis, fetch MongoDB data
+            await fetchMongoData(decryptedPsid, timestamp);
           }
         }
       } catch (error) {
@@ -203,8 +215,39 @@ function App() {
       }
     };
 
+    const fetchMongoData = async (psid, timestamp) => {
+      try {
+        console.log('Fetching MongoDB data for:', { psid, timestamp });
+        const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${psid}/${timestamp}`);
+        console.log('MongoDB response status:', mongoResponse.status);
+        
+        if (mongoResponse.status === 404) {
+          console.log('No existing data found in MongoDB');
+          return;
+        }
+        
+        if (mongoResponse.ok) {
+          const data = await mongoResponse.json();
+          console.log('MongoDB Data received:', data);
+          
+          // Auto-fill form with received data
+          setFormData({
+            fullName: data.fullName || '',
+            phone: data.phone || '',
+            address: data.address || '',
+            city: data.city || '',
+            state: data.state || '',
+            zipCode: data.zipCode || '',
+            country: data.country || ''
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching MongoDB data:', error);
+      }
+    };
+
     initializeApp();
-  }, []); // Run once on component mount
+  }, []);
 
   // Show black screen while loading
   if (isLoading) {
@@ -244,31 +287,85 @@ function App() {
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="fullName">Full Name</label>
-          <input type="text" id="fullName" name="fullName" required placeholder="Enter your full name" />
+          <input 
+            type="text" 
+            id="fullName" 
+            name="fullName" 
+            required 
+            placeholder="Enter your full name"
+            value={formData.fullName}
+            onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="phone">Phone Number</label>
-          <input type="tel" id="phone" name="phone" required placeholder="Enter your phone number" />
+          <input 
+            type="tel" 
+            id="phone" 
+            name="phone" 
+            required 
+            placeholder="Enter your phone number"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="address">Street Address</label>
-          <input type="text" id="address" name="address" required placeholder="Enter your street address" />
+          <input 
+            type="text" 
+            id="address" 
+            name="address" 
+            required 
+            placeholder="Enter your street address"
+            value={formData.address}
+            onChange={(e) => setFormData({...formData, address: e.target.value})}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="city">City</label>
-          <input type="text" id="city" name="city" required placeholder="Enter your city" />
+          <input 
+            type="text" 
+            id="city" 
+            name="city" 
+            required 
+            placeholder="Enter your city"
+            value={formData.city}
+            onChange={(e) => setFormData({...formData, city: e.target.value})}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="state">State/Province</label>
-          <input type="text" id="state" name="state" required placeholder="Enter your state or province" />
+          <input 
+            type="text" 
+            id="state" 
+            name="state" 
+            required 
+            placeholder="Enter your state or province"
+            value={formData.state}
+            onChange={(e) => setFormData({...formData, state: e.target.value})}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="zipCode">ZIP/Postal Code</label>
-          <input type="text" id="zipCode" name="zipCode" required placeholder="Enter your ZIP or postal code" />
+          <input 
+            type="text" 
+            id="zipCode" 
+            name="zipCode" 
+            required 
+            placeholder="Enter your ZIP or postal code"
+            value={formData.zipCode}
+            onChange={(e) => setFormData({...formData, zipCode: e.target.value})}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="country">Country</label>
-          <select id="country" name="country" required>
+          <select 
+            id="country" 
+            name="country" 
+            required
+            value={formData.country}
+            onChange={(e) => setFormData({...formData, country: e.target.value})}
+          >
             <option value="">Select a country</option>
             <option value="US">United States</option>
             <option value="CA">Canada</option>
