@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { decryptToken } from './utils/encryption';
 import { validateSession, checkSessionExpiration, validateRedisTimestamp } from './utils/sessionUtils';
 import AddressForm from './components/AddressForm';
 import StatusMessage from './components/StatusMessage';
@@ -7,7 +6,7 @@ import './App.css';
 
 function App() {
   const [isExpired, setIsExpired] = useState(false);
-  const [userPsid, setUserPsid] = useState('');
+  const [userToken, setUserToken] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
@@ -38,11 +37,11 @@ function App() {
     try {
       const submitData = {
         ...formData,
-        psid: userPsid,
+        token: userToken,
         sessionTimestamp: timestamp
       };
 
-      const mongoResponse = await fetch('https://mongodb-manage.onrender.com/api/address', {
+      const mongoResponse = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,9 +68,9 @@ function App() {
     }
   };
 
-  const fetchMongoData = async (psid, timestamp) => {
+  const fetchMongoData = async (token, timestamp) => {
     try {
-      const mongoResponse = await fetch(`https://mongodb-manage.onrender.com/api/address/${psid}/${timestamp}`);
+      const mongoResponse = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address/${token}/${timestamp}`);
       if (mongoResponse.status === 404) {
         console.log('No existing data in MongoDB');
       } else if (mongoResponse.ok) {
@@ -92,20 +91,20 @@ function App() {
 
   useEffect(() => {
     const initializeSession = async () => {
-      localStorage.removeItem('redisTimestamp');
-      console.log('Cleared Redis timestamp from localStorage');
+      sessionStorage.removeItem('redisTimestamp');
+      console.log('Cleared Redis timestamp from sessionStorage');
       
       const urlParams = new URLSearchParams(window.location.search);
-      const encryptedToken = urlParams.get('token');
+      const token = urlParams.get('token');
       const timestamp = parseInt(urlParams.get('timestamp'), 10);
       
       console.log('URL Parameters:', {
-        token: encryptedToken ? 'exists' : 'missing',
+        token: token ? 'exists' : 'missing',
         timestamp,
         currentTime: Math.floor(Date.now() / 1000)
       });
 
-      if (!encryptedToken || !timestamp) {
+      if (!token || !timestamp) {
         console.error('Missing required parameters');
         setIsExpired(true);
         setIsLoading(false);
@@ -113,11 +112,7 @@ function App() {
       }
 
       try {
-        const decryptedPsid = decryptToken(encryptedToken);
-        if (!decryptedPsid) {
-          throw new Error('Failed to decrypt token');
-        }
-        setUserPsid(decryptedPsid);
+        setUserToken(token);
 
         const isValid = validateSession(timestamp);
         console.log('URL timestamp validation:', {
@@ -127,35 +122,35 @@ function App() {
         });
 
         if (isValid) {
-          const response = await fetch('https://redis-session-manage.onrender.com/session', {
+          const response = await fetch(`${process.env.REACT_APP_REDIS_SERVER_URL}/session`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              psid: decryptedPsid,
+              token: token,
               timestamp: timestamp
             })
           });
           const data = await response.json();
 
           if (data && data.timestamp) {
-            localStorage.setItem('redisTimestamp', data.timestamp);
-            console.log('Redis timestamp in localStorage:', localStorage.getItem('redisTimestamp'));
+            sessionStorage.setItem('redisTimestamp', data.timestamp);
+            console.log('Redis timestamp in sessionStorage:', sessionStorage.getItem('redisTimestamp'));
           }
 
           if (!data.isExpired) {
-            await fetchMongoData(decryptedPsid, timestamp);
+            await fetchMongoData(token, timestamp);
           } else {
             setIsExpired(true);
           }
         } else {
-          const isExpired = await checkSessionExpiration(decryptedPsid, timestamp);
+          const isExpired = await checkSessionExpiration(token, timestamp);
           
           if (isExpired) {
             setIsExpired(true);
           } else {
-            await fetchMongoData(decryptedPsid, timestamp);
+            await fetchMongoData(token, timestamp);
           }
         }
       } catch (error) {

@@ -23,13 +23,13 @@ export const validateSession = (timestamp) => {
   return timeDiffMinutes < TIMEOUT_MINUTES;
 };
 
-export const checkSessionExpiration = async (psid, timestamp) => {
+export const checkSessionExpiration = async (token, timestamp) => {
   try {
-    const response = await fetch(`https://redis-session-manage.onrender.com/session/${psid}/${timestamp}`);
+    const response = await fetch(`${process.env.REACT_APP_REDIS_SERVER_URL}/session/${token}/${timestamp}`);
     const data = await response.json();
     if (data && data.timestamp) {
-      localStorage.setItem('redisTimestamp', data.timestamp);
-      console.log('Redis timestamp in localStorage:', localStorage.getItem('redisTimestamp'));
+      sessionStorage.setItem('redisTimestamp', data.timestamp);
+      console.log('Redis timestamp in sessionStorage:', sessionStorage.getItem('redisTimestamp'));
     }
     return data.isExpired;
   } catch (error) {
@@ -39,7 +39,7 @@ export const checkSessionExpiration = async (psid, timestamp) => {
 };
 
 export const validateRedisTimestamp = () => {
-  const storedTimestamp = localStorage.getItem('redisTimestamp');
+  const storedTimestamp = sessionStorage.getItem('redisTimestamp');
   if (storedTimestamp) {
     const currentTime = Math.floor(Date.now() / 1000);
     const redisTime = parseInt(storedTimestamp);

@@ -14,9 +14,9 @@ export const validateSession = async (token, timestamp, timeoutMinutes = 20) => 
   return timeDiffMinutes < timeoutMinutes;
 };
 
-export const checkSessionExpiration = async (psid, timestamp) => {
+export const checkSessionExpiration = async (token, timestamp) => {
   try {
-    const response = await fetch(`https://redis-session-manage.onrender.com/session/${psid}/${timestamp}`);
+    const response = await fetch(`${process.env.REACT_APP_REDIS_SERVER_URL}/session/${token}/${timestamp}`);
     if (!response.ok) {
       throw new Error('Failed to check session expiration');
     }
@@ -28,9 +28,9 @@ export const checkSessionExpiration = async (psid, timestamp) => {
   }
 };
 
-export const fetchExistingAddress = async (psid, timestamp) => {
+export const fetchExistingAddress = async (token, timestamp) => {
   try {
-    const response = await fetch(`https://mongodb-manage.onrender.com/api/address/${psid}/${timestamp}`);
+    const response = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address/${token}/${timestamp}`);
     if (!response.ok) {
       throw new Error('Failed to fetch address data');
     }
@@ -43,7 +43,7 @@ export const fetchExistingAddress = async (psid, timestamp) => {
 
 export const submitAddress = async (formData) => {
   try {
-    const response = await fetch('https://mongodb-manage.onrender.com/api/address', {
+    const response = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -62,15 +62,15 @@ export const submitAddress = async (formData) => {
   }
 };
 
-export const updateSession = async (psid, timestamp) => {
+export const updateSession = async (token, timestamp) => {
   try {
-    await fetch('https://redis-session-manage.onrender.com/session', {
+    await fetch(`${process.env.REACT_APP_REDIS_SERVER_URL}/session`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        psid,
+        token,
         timestamp
       })
     });
