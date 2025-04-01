@@ -28,9 +28,9 @@ export const checkSessionExpiration = async (token, timestamp) => {
   }
 };
 
-export const fetchExistingAddress = async (token, timestamp) => {
+export const fetchExistingAddress = async (token) => {
   try {
-    const response = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address/${token}/${timestamp}`);
+    const response = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address/${token}`);
     if (!response.ok) {
       throw new Error('Failed to fetch address data');
     }

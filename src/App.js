@@ -68,9 +68,9 @@ function App() {
     }
   };
 
-  const fetchMongoData = async (token, timestamp) => {
+  const fetchMongoData = async (token) => {
     try {
-      const mongoResponse = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address/${token}/${timestamp}`);
+      const mongoResponse = await fetch(`${process.env.REACT_APP_MONGODB_SERVER_URL}/api/address/${token}`);
       if (mongoResponse.status === 404) {
         console.log('No existing data in MongoDB');
       } else if (mongoResponse.ok) {
@@ -140,7 +140,7 @@ function App() {
           }
 
           if (!data.isExpired) {
-            await fetchMongoData(token, timestamp);
+            await fetchMongoData(token);
           } else {
             setIsExpired(true);
           }
@@ -150,7 +150,7 @@ function App() {
           if (isExpired) {
             setIsExpired(true);
           } else {
-            await fetchMongoData(token, timestamp);
+            await fetchMongoData(token);
           }
         }
       } catch (error) {
