@@ -65,7 +65,6 @@ function App() {
       }
 
       setIsSubmitted(true);
-      alert('Address confirmed successfully!');
       closeWebview();
     } catch (error) {
       console.error('Error submitting address data:', error);
