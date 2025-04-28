@@ -85,8 +85,6 @@ function App() {
         throw new Error('Failed to submit address data');
       }
 
-      setIsSubmitted(true);
-      
       if (!window.MessengerExtensions) {
         console.log('MessengerExtensions not available, waiting for SDK to load...');
         setTimeout(() => {
@@ -203,10 +201,6 @@ function App() {
 
   if (isExpired) {
     return <StatusMessage type="expired" />;
-  }
-
-  if (isSubmitted) {
-    return <StatusMessage type="success" />;
   }
 
   return (
