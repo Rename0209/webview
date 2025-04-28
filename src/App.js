@@ -18,6 +18,17 @@ function App() {
     zipCode: ''
   });
 
+  const closeWebview = () => {
+    if (window.MessengerExtensions) {
+      window.MessengerExtensions.requestCloseBrowser(
+        () => console.log('Webview closed successfully'),
+        (err) => console.error('Error closing webview:', err)
+      );
+    } else {
+      console.log('MessengerExtensions not available');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -55,13 +66,7 @@ function App() {
 
       setIsSubmitted(true);
       alert('Address confirmed successfully!');
-      
-      if (window.MessengerExtensions) {
-        window.MessengerExtensions.requestCloseBrowser(
-          () => console.log('Webview closed successfully'),
-          (err) => console.error('Error closing webview:', err)
-        );
-      }
+      closeWebview();
     } catch (error) {
       console.error('Error submitting address data:', error);
       alert('Failed to submit address. Please try again.');
