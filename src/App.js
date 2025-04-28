@@ -21,7 +21,10 @@ function App() {
   useEffect(() => {
     window.extAsyncInit = function() {
       console.log('Messenger Extensions SDK loaded (from extAsyncInit)');
-      console.log(MessengerExtensions);
+      // Kiểm tra tham số messenger_extensions trên URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const messengerExtensions = urlParams.get('messenger_extensions');
+      console.log('messenger_extensions param:', messengerExtensions);
     };
   }, []);
 
