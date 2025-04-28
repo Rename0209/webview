@@ -21,6 +21,7 @@ function App() {
   useEffect(() => {
     window.extAsyncInit = function() {
       console.log('Messenger Extensions SDK loaded (from extAsyncInit)');
+      console.log(MessengerExtensions);
     };
   }, []);
 
