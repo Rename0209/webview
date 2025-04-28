@@ -18,25 +18,31 @@ function App() {
     zipCode: ''
   });
 
+  useEffect(() => {
+    window.extAsyncInit = function() {
+      console.log('Messenger Extensions SDK loaded (from extAsyncInit)');
+    };
+  }, []);
+
   const closeWebview = () => {
     if (window.MessengerExtensions) {
+      console.log('MessengerExtensions SDK is available, trying to close webview...');
       window.MessengerExtensions.requestCloseBrowser(
         () => console.log('Webview closed successfully'),
         (err) => console.error('Error closing webview:', err)
       );
     } else {
-      console.log('MessengerExtensions not available');
-      if (!window.extAsyncInit) {
-        window.extAsyncInit = function() {
-          console.log('Messenger Extensions SDK reloaded');
-          if (window.MessengerExtensions) {
-            window.MessengerExtensions.requestCloseBrowser(
-              () => console.log('Webview closed successfully after reload'),
-              (err) => console.error('Error closing webview after reload:', err)
-            );
-          }
-        };
-      }
+      console.log('MessengerExtensions SDK is NOT available at closeWebview time, will retry in 1s');
+      setTimeout(() => {
+        if (window.MessengerExtensions) {
+          window.MessengerExtensions.requestCloseBrowser(
+            () => console.log('Webview closed successfully (retry)'),
+            (err) => console.error('Error closing webview (retry):', err)
+          );
+        } else {
+          console.log('MessengerExtensions vẫn chưa khả dụng sau khi retry');
+        }
+      }, 1000);
     }
   };
 
