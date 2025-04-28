@@ -8,6 +8,10 @@
   <body>
     <div id="root"></div>
     <script>
+      window.extAsyncInit = function() {
+        console.log('Messenger Extensions SDK loaded');
+      };
+
       (function(d, s, id){
         var js, fjs = d.getElementsByTagName(s)[0];
         if (d.getElementById(id)) {return;}

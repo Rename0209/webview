@@ -26,6 +26,17 @@ function App() {
       );
     } else {
       console.log('MessengerExtensions not available');
+      if (!window.extAsyncInit) {
+        window.extAsyncInit = function() {
+          console.log('Messenger Extensions SDK reloaded');
+          if (window.MessengerExtensions) {
+            window.MessengerExtensions.requestCloseBrowser(
+              () => console.log('Webview closed successfully after reload'),
+              (err) => console.error('Error closing webview after reload:', err)
+            );
+          }
+        };
+      }
     }
   };
 
@@ -65,7 +76,15 @@ function App() {
       }
 
       setIsSubmitted(true);
-      closeWebview();
+      
+      if (!window.MessengerExtensions) {
+        console.log('MessengerExtensions not available, waiting for SDK to load...');
+        setTimeout(() => {
+          closeWebview();
+        }, 1000);
+      } else {
+        closeWebview();
+      }
     } catch (error) {
       console.error('Error submitting address data:', error);
       alert('Failed to submit address. Please try again.');
